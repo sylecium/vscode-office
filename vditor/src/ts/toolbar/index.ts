@@ -9,6 +9,7 @@ import {EditorTheme} from "./EditorTheme";
 import {EditorThemeLabel} from "./EditorThemeLabel";
 import {EditorThemeToggle} from "./EditorThemeToggle";
 import {Headings} from "./Headings";
+import {TextColor} from "./TextColor";
 import {Help} from "./Help";
 import {Indent} from "./Indent";
 import {Find} from "./Find";
@@ -88,6 +89,9 @@ export class Toolbar {
                 break;
             case "headings":
                 menuItemObj = new Headings(vditor, menuItem);
+                break;
+            case "text-color":
+                menuItemObj = new TextColor(vditor, menuItem);
                 break;
             case "|":
                 menuItemObj = new Divider();

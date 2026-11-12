@@ -1,4 +1,5 @@
 import { cloneWikilinkCopyContents } from "../util/wikilinkCopy";
+import { bindImageResize } from "../pro/imageResize";
 import { bindWikilinkBoundary } from "../util/wikilinkBoundary";
 import { Constants } from "../constants";
 import { hidePanel } from "../toolbar/setToolbar";
@@ -21,7 +22,7 @@ import {
 } from "../util/hasClosest";
 import { hasClosestByHeadings } from "../util/hasClosestByHeadings";
 import { isDeleteInput } from "../util/instantHistory";
-import { flushBufferedHistory, trackHistoryInputFromEvent } from "../util/historyInputBuffer";
+import { flushBufferedHistoryDeferred, trackHistoryInputFromEvent } from "../util/historyInputBuffer";
 import { canUsePlainTextFastPath } from "../util/plainTextFastPath";
 import {
     preventImpreciseLineStartClick,
@@ -54,8 +55,6 @@ import {
     setupLazyCodeMirrorObserver,
 } from "../codeBlock/codeMirrorManager";
 import { focusWysiwygCodeBlock, showCode } from "./showCode";
-import { getMarkdown } from "../markdown/getMarkdown";
-import { fireContentInput } from "../util/saveToolbarState";
 import { initBlockHandle } from "./blockHandle";
 import { linkClickEvent } from "../util/linkClick";
 import { initTableHandle } from "./tableHandle";
@@ -103,6 +102,7 @@ class WYSIWYG {
         copyEvent(vditor, this.element, this.copy);
         cutEvent(vditor, this.element, this.copy);
         bindImageLoadingState(this.element);
+        bindImageResize(vditor, this.element);
         setupLazyCodeMirrorObserver(vditor);
     }
 
@@ -314,12 +314,16 @@ class WYSIWYG {
             // 前后空格处理
             const startOffset = getSelectPosition(blockElement, vditor.wysiwyg.element, range).start;
 
+            // Read textContent once: re-reading it per iteration is O(n^2) on large blocks.
+            const blockText = blockElement.textContent;
+
             // 开始可以输入空格
             let startSpace = true;
-            for (let i = startOffset - 1; i > blockElement.textContent.substr(0, startOffset).lastIndexOf("\n"); i--) {
-                if (blockElement.textContent.charAt(i) !== " " &&
-                    // 多个 tab 前删除不形成代码块 https://github.com/Vanessa219/vditor/issues/162 1
-                    blockElement.textContent.charAt(i) !== "\t") {
+            const lineStart = blockText.lastIndexOf("\n", startOffset - 1);
+            for (let i = startOffset - 1; i > lineStart; i--) {
+                const ch = blockText.charAt(i);
+                // 多个 tab 前删除不形成代码块 https://github.com/Vanessa219/vditor/issues/162 1
+                if (ch !== " " && ch !== "\t") {
                     startSpace = false;
                     break;
                 }
@@ -330,8 +334,9 @@ class WYSIWYG {
 
             // 结尾可以输入空格
             let endSpace = true;
-            for (let i = startOffset - 1; i < blockElement.textContent.length; i++) {
-                if (blockElement.textContent.charAt(i) !== " " && blockElement.textContent.charAt(i) !== "\n") {
+            for (let i = startOffset - 1; i < blockText.length; i++) {
+                const ch = blockText.charAt(i);
+                if (ch !== " " && ch !== "\n") {
                     endSpace = false;
                     break;
                 }
@@ -349,9 +354,10 @@ class WYSIWYG {
             if ((startSpace && blockElement.getAttribute("data-type") !== "code-block")
                 || endSpace || isHeadingMD(blockElement.innerHTML) ||
                 (isHrMD(blockElement.innerHTML) && blockElement.previousElementSibling)) {
-                fireContentInput(vditor, getMarkdown(vditor));
+                // No synchronous full-document serialization here: the debounced
+                // history snapshot (afterRenderEvent) emits the content shortly after.
                 if (shouldFlushHistory) {
-                    flushBufferedHistory(vditor);
+                    flushBufferedHistoryDeferred(vditor);
                 } else {
                     afterRenderEvent(vditor);
                 }
@@ -360,7 +366,7 @@ class WYSIWYG {
 
             if (canUsePlainTextFastPath(vditor, event)) {
                 if (shouldFlushHistory) {
-                    flushBufferedHistory(vditor);
+                    flushBufferedHistoryDeferred(vditor);
                 } else {
                     afterRenderEvent(vditor);
                 }
@@ -369,7 +375,7 @@ class WYSIWYG {
 
             input(vditor, range, event);
             if (shouldFlushHistory) {
-                flushBufferedHistory(vditor);
+                flushBufferedHistoryDeferred(vditor);
             }
         });
 
@@ -507,7 +513,7 @@ class WYSIWYG {
                 return;
             }
             if ((event.key === "Backspace" || event.key === "Delete") &&
-                vditor.wysiwyg.element.innerHTML !== "" && vditor.wysiwyg.element.childNodes.length === 1 &&
+                vditor.wysiwyg.element.childNodes.length === 1 && vditor.wysiwyg.element.innerHTML !== "" &&
                 vditor.wysiwyg.element.firstElementChild && vditor.wysiwyg.element.firstElementChild.tagName === "P"
                 && vditor.wysiwyg.element.firstElementChild.childElementCount === 0
                 && (vditor.wysiwyg.element.textContent === "" || vditor.wysiwyg.element.textContent === "\n")) {

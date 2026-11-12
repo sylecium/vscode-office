@@ -1,4 +1,10 @@
-import {isSpecialBlock, renderCodeBlocks, setupLazyCodeMirrorObserver, syncMathBlocksDisplayMode} from "../codeBlock/codeMirrorManager";
+import {
+    deactivateCodeMirrorsInScope,
+    isSpecialBlock,
+    renderCodeBlocks,
+    setupLazyCodeMirrorObserver,
+    syncMathBlocksDisplayMode,
+} from "../codeBlock/codeMirrorManager";
 import {log} from "../util/log";
 import {processCodeRender} from "../util/processCode";
 import {renderTocNow} from "../util/toc";
@@ -22,24 +28,17 @@ export const renderDomByMd = (vditor: IVditor, md: string, options = {
     const editorElement = vditor.wysiwyg.element;
     const html = vditor.lute.Md2VditorDOM(md);
     log("Md2VditorDOM", html, "result", vditor.options.debugger);
+    // Destroy existing CodeMirror views before replacing the DOM (avoids leaked editors).
+    deactivateCodeMirrorsInScope(vditor, editorElement);
     editorElement.innerHTML = html;
-
-    const isNearViewport = (element: HTMLElement) => {
-        const rect = element.getBoundingClientRect();
-        const margin = 200;
-        return rect.bottom >= -margin && rect.top <= window.innerHeight + margin;
-    };
 
     editorElement.querySelectorAll(".vditor-wysiwyg__preview[data-render='2']").forEach((item: HTMLElement) => {
         const parent = item.parentElement as HTMLElement;
         if (!parent) {
             return;
         }
-        // 普通代码块走懒加载 placeholder；数学 / mermaid / plantuml 始终渲染预览
+        // Plain code blocks are lazily mounted by renderCodeBlocks; only special previews render here.
         if (parent.getAttribute("data-type") === "code-block" && !isSpecialBlock(parent)) {
-            if (!isNearViewport(parent)) {
-                return;
-            }
             return;
         }
         processCodeRender(item, vditor);

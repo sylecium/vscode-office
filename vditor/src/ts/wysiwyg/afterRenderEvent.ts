@@ -3,7 +3,12 @@ import { saveCacheFocus } from "../util/cacheFocus";
 import { fireContentInput } from "../util/saveToolbarState";
 import { accessLocalStorage } from "../util/compatibility";
 import { clearHistoryInputBuffer } from "../util/historyInputBufferState";
-import { getHistoryMaxWaitFactor, getHistoryRecordWait } from "../util/historySchedule";
+import {
+    cancelIdleHistory,
+    getHistoryMaxWaitFactor,
+    getHistoryRecordWait,
+    scheduleIdleHistory,
+} from "../util/historySchedule";
 import { matchHotkeyNew } from "../util/hotKey";
 import { formatMs, logPerf } from "../util/log";
 
@@ -32,8 +37,9 @@ export const afterRenderEvent = (vditor: IVditor, options = {
         vditor.options.undoDelay,
         getHistoryMaxWaitFactor(vditor),
     );
+    cancelIdleHistory(vditor.wysiwyg);
     vditor.wysiwyg.afterRenderTimeoutId = window.setTimeout(() => {
-        recordHistory(vditor, options);
+        scheduleIdleHistory(vditor.wysiwyg, () => recordHistory(vditor, options));
     }, wait);
 };
 
@@ -41,6 +47,7 @@ export function recordHistory(vditor: IVditor, options = { enableAddUndoStack: t
     if (vditor.wysiwyg.composingLock) {
         return;
     }
+    cancelIdleHistory(vditor.wysiwyg);
 
     const debug = vditor.options.debugger;
     const totalStart = debug ? performance.now() : 0;

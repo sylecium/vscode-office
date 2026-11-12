@@ -1,4 +1,5 @@
 import { Constants } from "../constants";
+import { handleCustomShortcut } from "../pro/shortcuts";
 import { isInsideCodeBlockChrome, isInsideCodeMirror, isPlantumlRenderImage } from "../codeBlock/codeMirrorManager";
 import { processHeading } from "../ir/process";
 import { processKeydown as irProcessKeydown } from "../ir/processKeydown";
@@ -221,6 +222,10 @@ export const macOptionSymbolEvent = (vditor: IVditor) => {
 export const hotkeyEvent = (vditor: IVditor, editorElement: HTMLElement) => {
     editorElement.addEventListener("keydown", (event: KeyboardEvent & { target: HTMLElement }) => {
         if (isInsideCodeBlockChrome(event.target)) {
+            return;
+        }
+        // User-configured shortcuts take precedence over built-in ones.
+        if (handleCustomShortcut(vditor, event)) {
             return;
         }
         if (vditor.currentMode === "wysiwyg" || vditor.currentMode === "ir") {

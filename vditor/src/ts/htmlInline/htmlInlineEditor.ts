@@ -256,7 +256,7 @@ const notifyAfterHtmlEditorChange = (vditor: IVditor) => {
     afterRenderEvent(vditor);
 };
 
-const renderHtmlInlineFromMd = (vditor: IVditor, md: string): string => {
+export const renderHtmlInlineFromMd = (vditor: IVditor, md: string): string => {
     const trimmed = md.trim();
     if (!trimmed) {
         return "";
@@ -271,7 +271,7 @@ const renderHtmlInlineFromMd = (vditor: IVditor, md: string): string => {
     return node?.outerHTML ?? "";
 };
 
-const renderHtmlBlockFromMd = (vditor: IVditor, md: string): string => {
+export const renderHtmlBlockFromMd = (vditor: IVditor, md: string): string => {
     const trimmed = md.trim();
     if (!trimmed) {
         return "";

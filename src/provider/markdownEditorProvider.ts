@@ -41,6 +41,7 @@ const MARKDOWN_SYNC_CONFIG_KEYS = [
     'editorTheme',
     'codeMirrorTheme',
     'mermaidTheme',
+    'markdownShortcuts',
 ] as const;
 
 type MarkdownSyncConfigKey = typeof MARKDOWN_SYNC_CONFIG_KEYS[number];
@@ -486,6 +487,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             codeMirrorTheme: configuration.get<string>("codeMirrorTheme", "Auto"),
             mermaidTheme: configuration.get<string>("mermaidTheme", "Auto"),
             preventMacOptionKey: configuration.get<boolean>("preventMacOptionKey", true),
+            markdownShortcuts: configuration.get<Record<string, string>>("markdownShortcuts", {}),
             markdown: {
                 math: {
                     macros: markdownConfiguration.get<Record<string, string>>("math.macros", {}),
@@ -516,16 +518,44 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     }
 
     private updateCount(content: string) {
-        this.countStatus.text = i18n('ext.markdown.statusBar', String(content.split(/\r\n|\r|\n/).length), String(content.length))
+        let lines = 1;
+        for (let i = 0; i < content.length; i++) {
+            const code = content.charCodeAt(i);
+            if (code === 10) {
+                lines++;
+            } else if (code === 13) {
+                lines++;
+                if (content.charCodeAt(i + 1) === 10) i++;
+            }
+        }
+        this.countStatus.text = i18n('ext.markdown.statusBar', String(lines), String(content.length))
     }
 
+    /**
+     * Apply only the changed region instead of replacing the whole document:
+     * VS Code then re-tokenizes and notifies listeners for a small range only.
+     */
     private updateTextDocument(document: vscode.TextDocument, content: string) {
+        const oldText = document.getText();
         const normalized = content.replace(/\r/g, '');
-        if (document.getText().replace(/\r/g, '') === normalized) {
+        const newText = document.eol === vscode.EndOfLine.CRLF ? normalized.replace(/\n/g, '\r\n') : normalized;
+        if (oldText === newText) {
             return Promise.resolve(true);
         }
+        const maxPrefix = Math.min(oldText.length, newText.length);
+        let prefix = 0;
+        while (prefix < maxPrefix && oldText.charCodeAt(prefix) === newText.charCodeAt(prefix)) prefix++;
+        // Never split a CRLF pair.
+        if (prefix > 0 && oldText.charCodeAt(prefix - 1) === 13) prefix--;
+        let suffix = 0;
+        const maxSuffix = maxPrefix - prefix;
+        while (suffix < maxSuffix
+            && oldText.charCodeAt(oldText.length - 1 - suffix) === newText.charCodeAt(newText.length - 1 - suffix)) suffix++;
+        if (suffix > 0 && oldText.charCodeAt(oldText.length - suffix) === 10
+            && oldText.charCodeAt(oldText.length - suffix - 1) === 13) suffix--;
+        const range = new vscode.Range(document.positionAt(prefix), document.positionAt(oldText.length - suffix));
         const edit = new vscode.WorkspaceEdit();
-        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), normalized);
+        edit.replace(document.uri, range, newText.slice(prefix, newText.length - suffix));
         return vscode.workspace.applyEdit(edit);
     }
 

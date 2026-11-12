@@ -1,4 +1,5 @@
 import { createMarkdownValueReader } from "./imagePath.js";
+import { openExportDialog } from "./exportDialog.js";
 
 function loadRes(url) {
     return fetch(url).then(r => r.text())
@@ -15,6 +16,7 @@ export async function getToolbar(resPath, onSave = null) {
         "bold",
         "italic",
         "strike",
+        "text-color",
         "link",
         "|",
         {
@@ -203,17 +205,14 @@ export const createContextMenu = (editor) => {
                 vscodeEvent.emit('command', 'office.markdown.paste')
                 break
             case 'exportPdf':
-                vscodeEvent.emit('export', { type: 'pdf' })
-                break
             case 'exportPdfWithoutOutline':
-                vscodeEvent.emit('export', { type: 'pdf', withoutOutline: true })
-                break
             case 'exportDocx':
-                vscodeEvent.emit('export', { type: 'docx' })
+            case 'exportHtml': {
+                const type = action === 'exportDocx' ? 'docx' : action === 'exportHtml' ? 'html' : 'pdf'
+                openExportDialog(type, editor, { withoutOutline: action === 'exportPdfWithoutOutline' })
+                    .then((option) => { if (option) vscodeEvent.emit('export', option) })
                 break
-            case 'exportHtml':
-                vscodeEvent.emit('export', { type: 'html' })
-                break
+            }
             case 'showInFolder':
                 vscodeEvent.emit('showInFolder')
                 break

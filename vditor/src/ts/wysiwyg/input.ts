@@ -143,7 +143,7 @@ export const input = (vditor: IVditor, range: Range, event?: InputEvent) => {
             }
             markPrepareStep("merge adjacent lists");
 
-            if (!blockElement.innerText.startsWith("```")) {
+            if (!blockElement.textContent.startsWith("```")) {
                 markPrepareStep("check code fence guard");
                 // 添加链接引用
                 vditor.wysiwyg.element.querySelectorAll("[data-type='link-ref-defs-block']").forEach((item) => {

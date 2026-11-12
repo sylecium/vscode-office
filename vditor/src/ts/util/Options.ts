@@ -1,5 +1,5 @@
 import { Constants } from "../constants";
-import { getToolbarCodicon } from "./codicon";
+import { codicon, getToolbarCodicon } from "./codicon";
 import { merge } from "./merge";
 
 export class Options {
@@ -155,6 +155,10 @@ export class Options {
             name: "strike",
             prefix: "~~",
             suffix: "~~",
+        }, {
+            icon: codicon("symbol-color"),
+            name: "text-color",
+            tip: "Text / background color",
         }, {
             hotkey: "⌘K",
             icon: getToolbarCodicon("link"),

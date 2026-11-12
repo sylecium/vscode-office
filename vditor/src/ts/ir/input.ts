@@ -20,8 +20,6 @@ import {getEditorRange, getSelectPosition, preserveEditorScroll, setRangeByWbr} 
 import {expandMarker} from "./expandMarker";
 import {scheduleRenderToc} from "../util/toc";
 import {processAfterRender} from "./process";
-import {getMarkdown} from "../markdown/getMarkdown";
-import {fireContentInput} from "../util/saveToolbarState";
 
 export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?: InputEvent) => {
     let blockElement = hasClosestBlock(range.startContainer);
@@ -35,15 +33,17 @@ export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?
         // 前后空格处理
         const startOffset = getSelectPosition(blockElement, vditor.ir.element, range).start;
 
+        // Read textContent once: re-reading it per iteration is O(n^2) on large blocks.
+        const blockText = blockElement.textContent;
+
         // 开始可以输入空格
         let startSpace = true;
-        for (let i = startOffset - 1;
-            // 软换行后有空格
-             i > blockElement.textContent.substr(0, startOffset).lastIndexOf("\n");
-             i--) {
-            if (blockElement.textContent.charAt(i) !== " " &&
-                // 多个 tab 前删除不形成代码块 https://github.com/Vanessa219/vditor/issues/162 1
-                blockElement.textContent.charAt(i) !== "\t") {
+        // 软换行后有空格
+        const lineStart = blockText.lastIndexOf("\n", startOffset - 1);
+        for (let i = startOffset - 1; i > lineStart; i--) {
+            const ch = blockText.charAt(i);
+            // 多个 tab 前删除不形成代码块 https://github.com/Vanessa219/vditor/issues/162 1
+            if (ch !== " " && ch !== "\t") {
                 startSpace = false;
                 break;
             }
@@ -54,15 +54,17 @@ export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?
 
         // 结尾可以输入空格
         let endSpace = true;
-        for (let i = startOffset - 1; i < blockElement.textContent.length; i++) {
-            if (blockElement.textContent.charAt(i) !== " " && blockElement.textContent.charAt(i) !== "\n") {
+        for (let i = startOffset - 1; i < blockText.length; i++) {
+            const ch = blockText.charAt(i);
+            if (ch !== " " && ch !== "\n") {
                 endSpace = false;
                 break;
             }
         }
 
+        // Defer serialization to the debounced snapshot instead of a full getMarkdown per keystroke.
         if (startSpace) {
-            fireContentInput(vditor, getMarkdown(vditor));
+            processAfterRender(vditor);
             return;
         }
         if (endSpace) {
@@ -75,7 +77,7 @@ export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?
                     // FireFox https://github.com/Vanessa219/vditor/issues/239
                     previousNode.classList.remove("vditor-ir__node--expand");
                 }
-                fireContentInput(vditor, getMarkdown(vditor));
+                processAfterRender(vditor);
                 return;
             }
         }
@@ -155,7 +157,7 @@ export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?
             html = blockElement.previousElementSibling.outerHTML + html;
             blockElement.previousElementSibling.remove();
         }
-        if (!blockElement.innerText.startsWith("```")) {
+        if (!blockElement.textContent.startsWith("```")) {
             // 添加链接引用
             vditor.ir.element.querySelectorAll("[data-type='link-ref-defs-block']").forEach((item) => {
                 if (item && !(blockElement as HTMLElement).isEqualNode(item)) {

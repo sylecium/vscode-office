@@ -1,10 +1,10 @@
 /**
  * 非符号 insertText 快路径：跳过 wbr / SpinVditorDOM / outerHTML 替换。
- * 仅对首次加载足够长的文档启用，小文件保持原有全量 spin 行为。
+ * Enabled for every document size: plain characters never change the block structure,
+ * so re-spinning the block on each keystroke is wasted work.
  */
 
-/** 达到技术长文体量（约 1.2 万字）后启用快路径 */
-export const PLAIN_TEXT_FAST_PATH_MIN_LENGTH = 12_000;
+export const PLAIN_TEXT_FAST_PATH_MIN_LENGTH = 0;
 
 /** 会触发 Markdown 结构或 spin 处理的字符（含空白） */
 const MARKDOWN_TRIGGER_RE = /[`*_~#\-+>\[\]()|!$\\=\s]/;

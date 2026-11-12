@@ -65,6 +65,7 @@ import {
     ViewerSettingsExport,
 } from "./ts/util/globalLocalStorageSettings";
 import { exportExportSettings, ExportThemeSettings } from "./ts/util/exportThemeSettings";
+import { applyShortcuts } from "./ts/pro/shortcuts";
 import {
     buildSettingsPanelHTML,
     refreshAISettingsToolbarPanel,
@@ -437,6 +438,16 @@ class Vditor {
         enableViewerSettingsSync(enabled);
     }
 
+    /** Replace the user keyboard shortcut map (command -> combo). */
+    public setShortcuts(shortcuts: Record<string, string>) {
+        applyShortcuts(this.vditor, shortcuts);
+    }
+
+    /** Theme, fonts and colors of the editor, used to produce exports that look like the editor. */
+    public getExportSettings(): ExportThemeSettings {
+        return exportExportSettings(this.vditor);
+    }
+
     /** 导出当前全局设置（用于写入配置文件） */
     public exportViewerSettings(): ViewerSettingsExport {
         return exportViewerSettings();
@@ -597,6 +608,7 @@ class Vditor {
         this.vditor.wysiwyg = new WYSIWYG(this.vditor);
         this.vditor.ir = new IR(this.vditor);
         this.vditor.toolbar = new Toolbar(this.vditor);
+        applyShortcuts(this.vditor, mergedOptions.shortcuts);
 
         if (typeof mergedOptions.onSettingsChange === "function") {
             setOnViewerSettingsChange((settings) => mergedOptions.onSettingsChange?.(settings));

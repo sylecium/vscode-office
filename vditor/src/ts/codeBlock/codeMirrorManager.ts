@@ -21,7 +21,10 @@ import {
     removeCodeBlockChrome,
     updateCodeBlockChromeLanguage,
 } from "./codeBlockChrome";
-import { loadCodeMirrorHighlightLanguage } from "./codeBlockHighlightLanguages";
+import {
+    getLoadedCodeMirrorHighlightLanguage,
+    loadCodeMirrorHighlightLanguage,
+} from "./codeBlockHighlightLanguages";
 import { resolveCodeMirrorCopyPayload } from "./codeMirrorRichCopy";
 import { stopHandledCodeMirrorKeymap, vditorCodeMirrorSetup } from "./codeMirrorSetup";
 import { mathRender } from "../markdown/mathRender";
@@ -44,14 +47,18 @@ export const CM_SPLIT_CLASS = "vditor-cm-block--split";
 const CM_BLOCK_DATA_TYPES = new Set(["code-block", "math-block"]);
 const SPECIAL_LANGUAGES = ["mermaid", "plantuml", "math"];
 /** 视口内同时挂载 CodeMirror 的上限（参考 Milkdown 25 块文档 <15 个 CM 实例） */
-const LAZY_CM_MAX_MOUNTED = 15;
-/** 视口外扩范围，与 Milkdown 一致 */
-const LAZY_CM_VIEWPORT_MARGIN = 200;
-/** 滚出视口后延迟卸载 CodeMirror，避免快速滚动时反复创建/销毁 */
+const LAZY_CM_MAX_MOUNTED = 30;
+/** Pre-mount margin around the scroll container (the editor element scrolls, not the window). */
+const LAZY_CM_VIEWPORT_MARGIN = 1500;
+/** Keep CodeMirror mounted a long time after leaving the viewport to avoid rebuild flashes when scrolling back. */
 const LAZY_CM_TEARDOWN_DELAY = 5000;
 const CM_PLACEHOLDER_CLASS = "vditor-code-block-placeholder";
 
 let lazyCodeMirrorObserver: IntersectionObserver | null = null;
+let lazyCodeMirrorObserverRoot: HTMLElement | null = null;
+const lazyObservedBlocks = new Set<HTMLElement>();
+const lazyPendingMounts = new Map<HTMLElement, IVditor>();
+let lazyMountFrame = 0;
 const lazyVisibilityCallbacks = new WeakMap<HTMLElement, (isIntersecting: boolean) => void>();
 const lazyTeardownTimers = new WeakMap<HTMLElement, number>();
 const lazyPendingTeardownBlocks = new Set<HTMLElement>();
@@ -263,12 +270,12 @@ const getBlockParts = (blockElement: HTMLElement) => {
     return { editPre, code, preview };
 };
 
-const getModeEditor = (vditor: IVditor) => {
+const getModeEditor = (vditor: IVditor): HTMLElement | null => {
     if (vditor.currentMode === "wysiwyg") {
-        return vditor.wysiwyg.element;
+        return vditor.wysiwyg?.element ?? null;
     }
     if (vditor.currentMode === "ir") {
-        return vditor.ir.element;
+        return vditor.ir?.element ?? null;
     }
     return null;
 };
@@ -283,10 +290,20 @@ const getCmBlockSelector = (mode: string) => {
 /** @deprecated use getCmBlockSelector */
 const getCodeBlockSelector = getCmBlockSelector;
 
-const isBlockNearViewport = (blockElement: HTMLElement, margin = LAZY_CM_VIEWPORT_MARGIN) => {
-    const rect = blockElement.getBoundingClientRect();
-    return rect.bottom >= -margin && rect.top <= window.innerHeight + margin;
+const getViewportBounds = (vditor: IVditor) => {
+    const root = getModeEditor(vditor);
+    if (!root) {
+        return { top: 0, bottom: window.innerHeight };
+    }
+    const rect = root.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom };
 };
+
+const isRectNearViewport = (
+    rect: DOMRect,
+    bounds: { top: number; bottom: number },
+    margin = LAZY_CM_VIEWPORT_MARGIN,
+) => rect.bottom >= bounds.top - margin && rect.top <= bounds.bottom + margin;
 
 /** 仅普通代码块走视口懒加载；数学 / mermaid / plantuml 不受影响 */
 const isLazyManagedCodeBlock = (blockElement: HTMLElement) =>
@@ -390,15 +407,52 @@ const handleLazyCodeBlockVisibility = (
     }
     if (isIntersecting) {
         cancelLazyTeardown(blockElement);
-        blockElement.classList.remove(CM_PLACEHOLDER_CLASS);
         if (!bindings.has(blockElement)) {
-            enforceMaxMounted(vditor, blockElement);
-            mountCodeMirror(blockElement, vditor, true);
+            queueLazyMount(vditor, blockElement);
         }
         return;
     }
+    lazyPendingMounts.delete(blockElement);
     if (bindings.has(blockElement)) {
         scheduleLazyTeardown(blockElement);
+    }
+};
+
+/** Batch CodeMirror mounts into a single frame instead of mounting inside the observer callback. */
+const queueLazyMount = (vditor: IVditor, blockElement: HTMLElement) => {
+    lazyPendingMounts.set(blockElement, vditor);
+    if (lazyMountFrame) {
+        return;
+    }
+    lazyMountFrame = window.requestAnimationFrame(() => {
+        lazyMountFrame = 0;
+        const pending = Array.from(lazyPendingMounts.entries());
+        lazyPendingMounts.clear();
+        for (const [block, blockVditor] of pending) {
+            if (!block.isConnected || bindings.has(block)) {
+                continue;
+            }
+            enforceMaxMounted(blockVditor, block);
+            mountCodeMirror(block, blockVditor, true);
+        }
+    });
+};
+
+const pruneDetachedLazyBlocks = () => {
+    for (const block of lazyObservedBlocks) {
+        if (!block.isConnected) {
+            lazyCodeMirrorObserver?.unobserve(block);
+            lazyObservedBlocks.delete(block);
+            lazyPendingMounts.delete(block);
+            cancelLazyTeardown(block);
+            const binding = bindings.get(block);
+            if (binding) {
+                window.clearTimeout(binding.syncTimer);
+                window.clearTimeout(binding.previewTimer);
+                binding.view.destroy();
+                bindings.delete(block);
+            }
+        }
     }
 };
 
@@ -410,7 +464,10 @@ const registerLazyCodeBlockVisibility = (vditor: IVditor, blockElement: HTMLElem
     lazyVisibilityCallbacks.set(blockElement, (isIntersecting) => {
         handleLazyCodeBlockVisibility(vditor, blockElement, isIntersecting);
     });
-    lazyCodeMirrorObserver?.observe(blockElement);
+    if (!lazyObservedBlocks.has(blockElement)) {
+        lazyObservedBlocks.add(blockElement);
+        lazyCodeMirrorObserver?.observe(blockElement);
+    }
 };
 
 const destroyCodeMirror = (blockElement: HTMLElement) => {
@@ -451,31 +508,26 @@ const getMountedCodeBlocks = (vditor: IVditor) => {
 
 const enforceMaxMounted = (vditor: IVditor, keepBlock: HTMLElement) => {
     const mounted = getMountedCodeBlocks(vditor).filter((block) => block !== keepBlock);
-    while (mounted.length >= LAZY_CM_MAX_MOUNTED) {
-        let furthest: HTMLElement | null = null;
-        let maxDistance = -1;
-        const viewportCenter = window.innerHeight / 2;
-        for (const block of mounted) {
-            if (!isLazyManagedCodeBlock(block)) {
-                continue;
-            }
-            const binding = bindings.get(block);
-            if (binding?.view.hasFocus) {
-                continue;
-            }
+    if (mounted.length < LAZY_CM_MAX_MOUNTED) {
+        return;
+    }
+    // Read all geometry in one pass, then destroy: avoids interleaved layout reads/writes.
+    const bounds = getViewportBounds(vditor);
+    const viewportCenter = (bounds.top + bounds.bottom) / 2;
+    const candidates = mounted
+        .filter((block) => isLazyManagedCodeBlock(block) && !bindings.get(block)?.view.hasFocus)
+        .map((block) => {
             const rect = block.getBoundingClientRect();
-            const blockCenter = rect.top + rect.height / 2;
-            const distance = Math.abs(blockCenter - viewportCenter);
-            if (distance > maxDistance) {
-                maxDistance = distance;
-                furthest = block;
-            }
-        }
-        if (!furthest) {
+            return { block, distance: Math.abs(rect.top + rect.height / 2 - viewportCenter) };
+        })
+        .sort((a, b) => b.distance - a.distance);
+    let excess = mounted.length - LAZY_CM_MAX_MOUNTED + 1;
+    for (const { block } of candidates) {
+        if (excess <= 0) {
             break;
         }
-        destroyCodeMirror(furthest);
-        mounted.splice(mounted.indexOf(furthest), 1);
+        destroyCodeMirror(block);
+        excess--;
     }
 };
 
@@ -491,28 +543,56 @@ const scheduleSpecialBlock = (vditor: IVditor, blockElement: HTMLElement) => {
     }
 };
 
-const scheduleLazyCodeBlock = (vditor: IVditor, blockElement: HTMLElement) => {
+const scheduleLazyCodeBlock = (
+    vditor: IVditor,
+    blockElement: HTMLElement,
+    isNear: boolean,
+) => {
     if (isSpecialBlock(blockElement)) {
         scheduleSpecialBlock(vditor, blockElement);
         return;
     }
-    if (isBlockNearViewport(blockElement)) {
+    if (isNear) {
         enforceMaxMounted(vditor, blockElement);
         mountCodeMirror(blockElement, vditor, true);
-    } else {
-        if (bindings.has(blockElement)) {
-            cancelLazyTeardown(blockElement);
-            destroyCodeMirror(blockElement);
-        }
+    } else if (!bindings.has(blockElement)) {
+        // Keep already-mounted editors: the observer schedules their teardown lazily.
         showPlainCodeBlockPlaceholder(blockElement);
     }
     registerLazyCodeBlockVisibility(vditor, blockElement);
 };
 
-export const setupLazyCodeMirrorObserver = (_vditor: IVditor) => {
-    if (lazyCodeMirrorObserver) {
+let cmFocusClassBound = false;
+
+/** Toggle `vditor--cm-focused` on the mode container while a CodeMirror block has focus. */
+const bindCodeMirrorFocusClass = () => {
+    if (cmFocusClassBound) {
         return;
     }
+    cmFocusClassBound = true;
+    const update = () => {
+        const active = document.activeElement as HTMLElement | null;
+        const focusedCm = active?.closest?.(".cm-editor") ?? null;
+        document.querySelectorAll(".vditor-wysiwyg, .vditor-ir").forEach((container) => {
+            container.classList.toggle("vditor--cm-focused", !!focusedCm && container.contains(focusedCm));
+        });
+    };
+    document.addEventListener("focusin", update, true);
+    document.addEventListener("focusout", () => window.setTimeout(update, 0), true);
+};
+
+export const setupLazyCodeMirrorObserver = (vditor: IVditor) => {
+    bindCodeMirrorFocusClass();
+    const root = getModeEditor(vditor);
+    // Called early from mode constructors before the editor element exists: wait for renderCodeBlocks.
+    if (!root || (lazyCodeMirrorObserver && lazyCodeMirrorObserverRoot === root)) {
+        return;
+    }
+    // The scrolling element is the mode editor (html/body are overflow:hidden),
+    // so the observer must use it as root for rootMargin to pre-mount blocks.
+    lazyCodeMirrorObserver?.disconnect();
+    lazyObservedBlocks.clear();
+    lazyCodeMirrorObserverRoot = root;
     lazyCodeMirrorObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
             const blockElement = entry.target as HTMLElement;
@@ -520,7 +600,7 @@ export const setupLazyCodeMirrorObserver = (_vditor: IVditor) => {
             callback?.(entry.isIntersecting);
         }
     }, {
-        root: null,
+        root,
         rootMargin: `${LAZY_CM_VIEWPORT_MARGIN}px 0px`,
         threshold: 0,
     });
@@ -562,6 +642,24 @@ export const prepareWysiwygCmBlockDom = prepareCmBlockDom;
 
 const loadLanguage = (languageName: string): Promise<LanguageSupport | undefined> => {
     return loadCodeMirrorHighlightLanguage(languageName);
+};
+
+const preloadedLanguageNames = new Set<string>();
+
+/** Fire-and-forget grammar loading for every language used in the given blocks. */
+const preloadCodeBlockLanguages = (blocks: HTMLElement[]) => {
+    for (const block of blocks) {
+        const parts = getBlockParts(block);
+        if (!parts) {
+            continue;
+        }
+        const name = getLanguageName(parts.code);
+        if (!name || preloadedLanguageNames.has(name)) {
+            continue;
+        }
+        preloadedLanguageNames.add(name);
+        loadLanguage(name).catch((): undefined => undefined);
+    }
 };
 
 const getSpecialPreviewLanguage = (blockElement: HTMLElement, preview: HTMLElement) => {
@@ -1395,9 +1493,17 @@ export const deactivateCodeMirrorsInScope = (vditor: IVditor, scope: HTMLElement
 
 /** Spin 后仅重建作用域内需要编辑的 CodeMirror */
 export const renderCodeBlocksInScope = (vditor: IVditor, scope: HTMLElement) => {
-    for (const blockElement of collectCodeBlocksInScope(vditor, scope)) {
-        scheduleLazyCodeBlock(vditor, blockElement);
+    const blocks = collectCodeBlocksInScope(vditor, scope);
+    if (blocks.length === 0) {
+        return;
     }
+    preloadCodeBlockLanguages(blocks);
+    const bounds = getViewportBounds(vditor);
+    const nearFlags = blocks.map((block) =>
+        isSpecialBlock(block) ? false : isRectNearViewport(block.getBoundingClientRect(), bounds));
+    blocks.forEach((block, index) => {
+        scheduleLazyCodeBlock(vditor, block, nearFlags[index]);
+    });
 };
 
 const getCmBlockFromNode = (node: Node | null, editorElement: HTMLElement): HTMLElement | null => {
@@ -1550,6 +1656,32 @@ export const focusCmBlockAtCursor = (vditor: IVditor, editorElement: HTMLElement
 const isEmptyCmDoc = (view: EditorView) => view.state.doc.toString().trim() === "";
 
 /** undo/redo 等整页 DOM 替换后，清理残留 CM 挂载并重新初始化 */
+/**
+ * Put code blocks of a detached clone into a canonical state that does not depend on whether
+ * CodeMirror is mounted (lazy mount/teardown). Undo snapshots taken before/after a mount then
+ * differ only by real edits, which keeps diff_match_patch fast.
+ */
+export const normalizeCodeBlocksForSnapshot = (root: HTMLElement) => {
+    root.querySelectorAll(".cm-editor, .vditor-cm-chrome").forEach((el) => el.remove());
+    root.querySelectorAll(`.${CM_BLOCK_CLASS}, .${CM_PLACEHOLDER_CLASS}, .${CM_HOST_CLASS}`).forEach((el) => {
+        el.classList.remove(CM_BLOCK_CLASS, CM_PLACEHOLDER_CLASS, CM_HOST_CLASS);
+        if (el.getAttribute("class") === "") {
+            el.removeAttribute("class");
+        }
+    });
+    root.querySelectorAll("[data-type='code-block'], [data-type='math-block']").forEach((block) => {
+        const parts = getBlockParts(block as HTMLElement);
+        if (!parts) {
+            return;
+        }
+        parts.editPre.removeAttribute("style");
+        parts.editPre.removeAttribute("contenteditable");
+        parts.code.removeAttribute("hidden");
+        parts.code.removeAttribute("aria-hidden");
+        parts.code.removeAttribute("style");
+    });
+};
+
 export const remountCodeMirrorsAfterDomReplace = (vditor: IVditor) => {
     if (vditor.currentMode !== "wysiwyg" && vditor.currentMode !== "ir") {
         return;
@@ -1620,6 +1752,11 @@ const mountCodeMirror = (blockElement: HTMLElement, vditor: IVditor, force = fal
     };
 
     const rawCode = code.textContent || "";
+    // Use an already-loaded grammar synchronously so the block renders highlighted in one paint.
+    const readyLanguage = languageName ? getLoadedCodeMirrorHighlightLanguage(languageName) : undefined;
+    if (readyLanguage) {
+        binding.languageName = languageName;
+    }
 
     const view = new EditorView({
         // Lute有bug, 会给代码块末尾生成一行空行
@@ -1629,7 +1766,7 @@ const mountCodeMirror = (blockElement: HTMLElement, vditor: IVditor, force = fal
             vditorCodeMirrorSetup,
             keymap.of(stopHandledCodeMirrorKeymap([{ key: "Tab", run: insertLiteralTab, shift: indentLess }])),
             buildCodeMirrorNavigationKeymap(vditor, blockElement),
-            languageCompartment.of([]),
+            languageCompartment.of(readyLanguage ?? []),
             EditorView.updateListener.of((update) => {
                 if (binding.updating || !update.docChanged) {
                     return;
@@ -1654,9 +1791,21 @@ export const renderCodeBlocks = (vditor: IVditor) => {
     if (!editor) {
         return;
     }
-    for (const block of editor.querySelectorAll(getCodeBlockSelector(vditor.currentMode))) {
-        scheduleLazyCodeBlock(vditor, block as HTMLElement);
-    }
+    setupLazyCodeMirrorObserver(vditor);
+    pruneDetachedLazyBlocks();
+    const blocks = Array.from(
+        editor.querySelectorAll(getCodeBlockSelector(vditor.currentMode)),
+    ) as HTMLElement[];
+    // Preload grammars for every language in the document so mounts render colored at once.
+    preloadCodeBlockLanguages(blocks);
+    // Read phase: measure all blocks before any DOM write.
+    const bounds = getViewportBounds(vditor);
+    const nearFlags = blocks.map((block) =>
+        isSpecialBlock(block) ? false : isRectNearViewport(block.getBoundingClientRect(), bounds));
+    // Write phase.
+    blocks.forEach((block, index) => {
+        scheduleLazyCodeBlock(vditor, block, nearFlags[index]);
+    });
     syncMathBlocksDisplayMode(editor, vditor);
 };
 
@@ -2170,7 +2319,54 @@ export const flushCodeMirrorToSyncCode = (vditor: IVditor) => {
 };
 
 /** 导出 Markdown 前同步 CM 状态；Lute 直接识别 CM DOM，无需再篡改 DOM */
-export const buildEditorHtmlForMarkdown = (vditor: IVditor) => {
+const VOID_HTML_INLINE_RE = /^<(img|br|input|source|embed|wbr|video|audio|iframe)\b/i;
+const VOID_HTML_TOKEN_PREFIX = "VdtrVoidHtml";
+const VOID_HTML_TOKEN_SUFFIX = "Zq";
+
+const toLetterIndex = (index: number) => {
+    let out = "";
+    let n = index;
+    do {
+        out = String.fromCharCode(97 + (n % 26)) + out;
+        n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return out;
+};
+
+/**
+ * Lute drops inline raw HTML void elements such as `<img width>` when converting the editor DOM
+ * back to Markdown. Replace them with plain-letter tokens before conversion and restore the
+ * original source afterwards (see restoreVoidHtmlInlineTokens).
+ */
+const tokenizeVoidHtmlInline = (root: HTMLElement, sources: string[]) => {
+    for (const node of root.querySelectorAll("[data-type='html-inline'][data-md-source]")) {
+        const source = (node.getAttribute("data-md-source") || "").replaceAll("_esc_newline_", "\n");
+        if (!VOID_HTML_INLINE_RE.test(source.trim())) {
+            continue;
+        }
+        const token = `${VOID_HTML_TOKEN_PREFIX}${toLetterIndex(sources.length)}${VOID_HTML_TOKEN_SUFFIX}`;
+        sources.push(source);
+        node.replaceWith(document.createTextNode(token));
+    }
+};
+
+export const restoreVoidHtmlInlineTokens = (markdown: string, sources: string[]) => {
+    if (sources.length === 0) {
+        return markdown;
+    }
+    return markdown.replace(
+        new RegExp(`${VOID_HTML_TOKEN_PREFIX}([a-z]+)${VOID_HTML_TOKEN_SUFFIX}`, "g"),
+        (match, letters: string) => {
+            let index = 0;
+            for (const ch of letters) {
+                index = index * 26 + (ch.charCodeAt(0) - 96);
+            }
+            return sources[index - 1] ?? match;
+        },
+    );
+};
+
+export const buildEditorHtmlForMarkdown = (vditor: IVditor, voidHtmlSources?: string[]) => {
     flushCodeMirrorToSyncCode(vditor);
     flushInlineMathToSyncCode(vditor[vditor.currentMode].element);
     flushFrontMatterYamlToSyncCode(vditor);
@@ -2196,6 +2392,9 @@ export const buildEditorHtmlForMarkdown = (vditor: IVditor) => {
             parts.code.removeAttribute("hidden");
             parts.code.style.display = "";
         }
+    }
+    if (voidHtmlSources) {
+        tokenizeVoidHtmlInline(clone, voidHtmlSources);
     }
     return clone.innerHTML;
 };

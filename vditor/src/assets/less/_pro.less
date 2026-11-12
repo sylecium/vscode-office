@@ -1,0 +1,140 @@
+// Pro features: text color panel, image resize overlay, shortcuts settings.
+
+.vditor-toolbar__item button[data-type="text-color"] {
+  position: relative;
+
+  .vditor-text-color__bar {
+    position: absolute;
+    left: 25%;
+    right: 25%;
+    bottom: 3px;
+    height: 3px;
+    border-radius: 1px;
+    pointer-events: none;
+  }
+}
+
+.vditor-hint.vditor-text-color {
+  padding: 8px 10px;
+  min-width: 232px;
+
+  .vditor-text-color__section + .vditor-text-color__section {
+    margin-top: 8px;
+  }
+
+  .vditor-text-color__label {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-bottom: 4px;
+  }
+
+  .vditor-text-color__swatches {
+    display: grid;
+    grid-template-columns: repeat(7, 24px);
+    gap: 4px;
+  }
+
+  button.vditor-text-color__swatch,
+  button.vditor-text-color__none,
+  .vditor-text-color__custom {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    margin: 0;
+    border-radius: 4px;
+    border: 1px solid var(--border-color, rgba(128, 128, 128, 0.35));
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 22px;
+    text-align: center;
+    cursor: pointer;
+    background-color: var(--panel-background-color, transparent);
+    box-sizing: border-box;
+  }
+
+  button.vditor-text-color__swatch:hover,
+  button.vditor-text-color__none:hover,
+  .vditor-text-color__custom:hover {
+    outline: 2px solid var(--vscode-focusBorder, #3794ff);
+    outline-offset: 1px;
+  }
+
+  .vditor-text-color__custom {
+    position: relative;
+    overflow: hidden;
+    background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+
+    input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  button.vditor-text-color__clear {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 4px 0;
+    text-align: center;
+    font-size: 12px;
+  }
+}
+
+// Image resize overlay (fixed, follows the clicked image).
+.vditor-img-resize {
+  position: fixed;
+  display: none;
+  z-index: 50;
+  box-sizing: border-box;
+  border: 1px solid var(--vscode-focusBorder, #3794ff);
+  pointer-events: none;
+
+  .vditor-img-resize__handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--vscode-focusBorder, #3794ff);
+    border: 1px solid #fff;
+    border-radius: 2px;
+    pointer-events: auto;
+    touch-action: none;
+
+    &[data-dir="e"] { right: -6px; top: 50%; margin-top: -5px; cursor: ew-resize; }
+    &[data-dir="w"] { left: -6px; top: 50%; margin-top: -5px; cursor: ew-resize; }
+    &[data-dir="se"] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+    &[data-dir="sw"] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+  }
+
+  .vditor-img-resize__label {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    border-radius: 3px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+  }
+
+  .vditor-img-resize__reset {
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    pointer-events: auto;
+    font-size: 14px;
+    line-height: 22px;
+  }
+}

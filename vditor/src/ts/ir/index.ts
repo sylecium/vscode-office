@@ -1,4 +1,5 @@
 import { cloneWikilinkCopyContents } from "../util/wikilinkCopy";
+import { bindImageResize } from "../pro/imageResize";
 import { bindWikilinkBoundary } from "../util/wikilinkBoundary";
 import { Constants } from "../constants";
 import { isCtrl, isFirefox } from "../util/compatibility";
@@ -16,7 +17,7 @@ import { paste } from "../util/fixBrowserBehavior";
 import { insertPastedCode } from "../util/processCode";
 import { hasClosestByClassName } from "../util/hasClosest";
 import { isDeleteInput, recordHistoryChange } from "../util/instantHistory";
-import { flushBufferedHistory, trackHistoryInputFromEvent } from "../util/historyInputBuffer";
+import { flushBufferedHistoryDeferred, trackHistoryInputFromEvent } from "../util/historyInputBuffer";
 import {
     getEditorRange, preventImpreciseLineStartClick, setRangeByWbr,
     setSelectionFocus,
@@ -87,6 +88,7 @@ class IR {
         copyEvent(vditor, this.element, this.copy);
         cutEvent(vditor, this.element, this.copy);
         bindImageLoadingState(this.element);
+        bindImageResize(vditor, this.element);
         setupLazyCodeMirrorObserver(vditor);
     }
 
@@ -179,7 +181,7 @@ class IR {
             if (recordInstantDelete) {
                 recordHistoryChange(vditor);
             } else if (shouldFlushHistory) {
-                flushBufferedHistory(vditor);
+                flushBufferedHistoryDeferred(vditor);
             }
         });
 

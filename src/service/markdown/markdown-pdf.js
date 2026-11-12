@@ -15,6 +15,7 @@ const markdownItObsidian = require("./ext/markdown-it-obsidian")
 const markdownItFrontMatterExport = require("./ext/markdown-it-front-matter")
 const { parse } = require("node-html-parser")
 const { exportByType } = require('./html-export')
+const { buildExportCss } = require('./exportTheme')
 
 async function convertMarkdown(inputMarkdownFile, config) {
 
@@ -22,7 +23,7 @@ async function convertMarkdown(inputMarkdownFile, config) {
   const uri = URI.file(inputMarkdownFile)
   const text = fs.readFileSync(inputMarkdownFile).toString()
   const content = convertMarkdownToHtml(inputMarkdownFile, type, text, config)
-  const html = mergeHtml(content, uri, type)
+  const html = mergeHtml(content, uri, type, config)
 
   // insert mermaid script
   let outputHtml = html
@@ -149,13 +150,23 @@ function convertMarkdownToHtml(filename, type, text, config) {
 /*
  * make html
  */
-function mergeHtml(content, uri, type) {
+function mergeHtml(content, uri, type, config = {}) {
   try {
     const mustache = require("mustache")
     const title = path.basename(uri.fsPath)
-    const style = readStyles(type)
+    // Theme/font overrides from the export dialog come last so they win over the base styles.
+    const style = readStyles(type) + buildExportCss(config.style)
     const templatePath = path.join(__dirname, "template", "template.html")
-    return mustache.render(readFile(templatePath), { title, style, content })
+    let html = mustache.render(readFile(templatePath), { title, style, content })
+    const frame = config.printFrame
+    if (frame) {
+      const n = (v) => Math.max(0, Math.round(Number(v) || 0))
+      const frameCss = `<style>html,body{margin:0 !important}body{padding:0 !important}.office-print-frame{padding:${n(frame.top)}px ${n(frame.right)}px ${n(frame.bottom)}px ${n(frame.left)}px;box-decoration-break:clone;-webkit-box-decoration-break:clone}</style>`
+      html = html.replace('</head>', `${frameCss}</head>`)
+        .replace('<div class="content-wrapper">', '<div class="office-print-frame"><div class="content-wrapper">')
+        .replace(/<\/body>/, '</div></body>')
+    }
+    return html
   } catch (error) {
     showErrorMessage("makeHtml()", error)
   }

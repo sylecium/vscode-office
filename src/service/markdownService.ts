@@ -9,6 +9,7 @@ import path, { dirname, extname, isAbsolute, join, parse } from 'path';
 import * as vscode from 'vscode';
 import { Holder } from './markdown/holder';
 import { convertMd } from "./markdown/markdown-pdf";
+import type { ExportStyle } from "./markdown/exportTheme";
 import { Global, i18n } from "@/common/global";
 
 export type ExportType = 'pdf' | 'html' | 'docx';
@@ -16,7 +17,18 @@ export type ExportType = 'pdf' | 'html' | 'docx';
 interface ExportOption {
     type?: ExportType;
     withoutOutline?: boolean;
+    /** Theme / fonts chosen in the export dialog. */
+    style?: ExportStyle;
+    /** PDF page format (A4, Letter, A5, Legal). */
+    format?: string;
+    /** PDF margins in millimeters. */
+    marginsMm?: { top?: number; right?: number; bottom?: number; left?: number };
+    /** Ask where to save the exported file. */
+    saveAs?: boolean;
 }
+
+const MM_TO_PX = 96 / 25.4;
+const PDF_FORMATS = new Set(['A3', 'A4', 'A5', 'Letter', 'Legal']);
 
 export class MarkdownService {
 
@@ -33,7 +45,17 @@ export class MarkdownService {
             if (type != 'html') { // html导出速度快, 无需等待
                 vscode.window.showInformationMessage(i18n('ext.markdown.exportStart', type))
             }
-            await convertMd({ markdownFilePath: uri.fsPath, config: this.getConfig(option) })
+            const config: ReturnType<MarkdownService['getConfig']> & { outputPath?: string } = this.getConfig(option);
+            if (option.saveAs) {
+                const parsed = parse(uri.fsPath);
+                const target = await vscode.window.showSaveDialog({
+                    defaultUri: vscode.Uri.file(join(parsed.dir, `${parsed.name}.${type}`)),
+                    filters: { [type.toUpperCase()]: [type] },
+                });
+                if (!target) return;
+                config.outputPath = target.fsPath;
+            }
+            await convertMd({ markdownFilePath: uri.fsPath, config })
             vscode.window.showInformationMessage(i18n('ext.markdown.exportSuccess', type))
         } catch (error) {
             Output.log(error)
@@ -42,7 +64,18 @@ export class MarkdownService {
 
     public getConfig(option: ExportOption) {
         const top = Global.getConfig("pdfMarginTop")
-        const { type = 'pdf', withoutOutline = false } = option;
+        const { type = 'pdf', withoutOutline = false, style, marginsMm, format } = option;
+        const toPx = (mm: unknown) => typeof mm === 'number' && mm >= 0 && mm <= 100 ? Math.round(mm * MM_TO_PX) : undefined;
+        let margin: { top?: number; right?: number; bottom?: number; left?: number } = marginsMm
+            ? { top: toPx(marginsMm.top) ?? top, right: toPx(marginsMm.right), bottom: toPx(marginsMm.bottom), left: toPx(marginsMm.left) }
+            : { top };
+        // Editor-themed PDF: paint the background edge to edge (PDF margins stay white otherwise),
+        // margins become an inner frame repeated on every page.
+        let printFrame: { top: number; right: number; bottom: number; left: number } | undefined;
+        if (type === 'pdf' && style?.theme === 'editor') {
+            printFrame = { top: margin.top ?? 0, right: margin.right ?? 0, bottom: margin.bottom ?? 0, left: margin.left ?? 0 };
+            margin = { top: 0, right: 0, bottom: 0, left: 0 };
+        }
         return {
             type,
             "styles": [],
@@ -55,8 +88,10 @@ export class MarkdownService {
             "breaks": false,
             // pdf print option
             "printBackground": true,
-            format: "A4",
-            margin: { top }
+            format: format && PDF_FORMATS.has(format) ? format : "A4",
+            margin,
+            style,
+            printFrame,
         };
     }
 
