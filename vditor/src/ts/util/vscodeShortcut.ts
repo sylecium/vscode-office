@@ -161,6 +161,71 @@ const selectBlock = (range: Range, vditor: IVditor) => {
     return true;
 };
 
+export type BlockCommand =
+    | "moveBlockUp" | "moveBlockDown"
+    | "copyBlockUp" | "copyBlockDown"
+    | "deleteBlock" | "selectBlock"
+    | "insertBlockBelow" | "insertBlockAbove";
+
+export const BLOCK_COMMANDS: BlockCommand[] = [
+    "moveBlockUp", "moveBlockDown", "copyBlockUp", "copyBlockDown",
+    "deleteBlock", "selectBlock", "insertBlockBelow", "insertBlockAbove",
+];
+
+/** Execute a block command at the caret. Returns false when not applicable. */
+export const runBlockCommand = (vditor: IVditor, command: BlockCommand): boolean => {
+    if (vditor.currentMode !== "wysiwyg" && vditor.currentMode !== "ir") {
+        return false;
+    }
+    const range = getEditorRange(vditor);
+    switch (command) {
+        case "copyBlockUp":
+        case "copyBlockDown":
+            return !!copyBlock(range, vditor, command === "copyBlockUp" ? "up" : "down");
+        case "selectBlock":
+            return selectBlock(range, vditor);
+        case "deleteBlock":
+            return !!deleteBlock(vditor, range);
+        case "moveBlockUp":
+        case "moveBlockDown":
+            if (vditor.currentMode === "wysiwyg") {
+                if (command === "moveBlockUp") {
+                    moveUp(range, vditor);
+                } else {
+                    moveDown(range, vditor);
+                }
+                return true;
+            }
+            return !!moveIrBlock(range, vditor, command === "moveBlockUp" ? "up" : "down");
+        case "insertBlockBelow":
+        case "insertBlockAbove":
+            insertEmptyBlock(vditor, command === "insertBlockAbove" ? "beforebegin" : "afterend");
+            return true;
+    }
+    return false;
+};
+
+/** Default bindings; a command remapped in options.shortcuts loses its default binding. */
+const matchDefaultBlockCommand = (event: KeyboardEvent): BlockCommand | null => {
+    const vertical = event.key === "ArrowUp" || event.key === "ArrowDown";
+    if (!isCtrl(event) && event.shiftKey && event.altKey && vertical) {
+        return event.key === "ArrowUp" ? "copyBlockUp" : "copyBlockDown";
+    }
+    if (isCtrl(event) && !event.shiftKey && !event.altKey && (event.key === "l" || event.key === "L")) {
+        return "selectBlock";
+    }
+    if (isCtrl(event) && event.shiftKey && !event.altKey && (event.key === "k" || event.key === "K")) {
+        return "deleteBlock";
+    }
+    if (!isCtrl(event) && !event.shiftKey && event.altKey && vertical) {
+        return event.key === "ArrowUp" ? "moveBlockUp" : "moveBlockDown";
+    }
+    if (isCtrl(event) && event.key === "Enter") {
+        return event.shiftKey ? "insertBlockAbove" : "insertBlockBelow";
+    }
+    return null;
+};
+
 /** VS Code 快捷键：Alt+↑/↓ 移动行，Shift+Alt+↑/↓ 复制行，Shift+Ctrl+K 删除行，Ctrl+L 选中行，Ctrl+Enter 插入空行 */
 export const handleVscodeShortcut = (vditor: IVditor, event: KeyboardEvent): boolean => {
     if (event.isComposing) {
@@ -175,61 +240,14 @@ export const handleVscodeShortcut = (vditor: IVditor, event: KeyboardEvent): boo
         return false;
     }
 
-    const range = getEditorRange(vditor);
-
-    if (!isCtrl(event) && event.shiftKey && event.altKey &&
-        (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-        const copied = copyBlock(range, vditor, event.key === "ArrowUp" ? "up" : "down");
-        if (!copied) {
-            return false;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        return true;
+    const command = matchDefaultBlockCommand(event);
+    if (!command || vditor.options.shortcuts?.[command] !== undefined) {
+        return false;
     }
-
-    if (isCtrl(event) && !event.shiftKey && !event.altKey &&
-        (event.key === "l" || event.key === "L")) {
-        if (!selectBlock(range, vditor)) {
-            return false;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        return true;
+    if (!runBlockCommand(vditor, command)) {
+        return false;
     }
-
-    if (isCtrl(event) && event.shiftKey && !event.altKey &&
-        (event.key === "k" || event.key === "K")) {
-        if (!deleteBlock(vditor, range)) {
-            return false;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        return true;
-    }
-
-    if (!isCtrl(event) && !event.shiftKey && event.altKey &&
-        (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-        if (vditor.currentMode === "wysiwyg") {
-            if (event.key === "ArrowUp") {
-                moveUp(range, vditor);
-            } else {
-                moveDown(range, vditor);
-            }
-        } else if (!moveIrBlock(range, vditor, event.key === "ArrowUp" ? "up" : "down")) {
-            return false;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        return true;
-    }
-
-    if (isCtrl(event) && event.key === "Enter") {
-        insertEmptyBlock(vditor, event.shiftKey ? "beforebegin" : "afterend");
-        event.preventDefault();
-        event.stopPropagation();
-        return true;
-    }
-
-    return false;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
 };

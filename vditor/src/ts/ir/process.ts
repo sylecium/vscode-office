@@ -7,7 +7,12 @@ import {clearHistoryInputBuffer} from "../util/historyInputBufferState";
 import {listToggle} from "../util/fixBrowserBehavior";
 import {hasClosestBlock, hasClosestByAttribute, hasClosestByClassName, hasClosestByMatchTag} from "../util/hasClosest";
 import {getEditorRange, setRangeByWbr, setSelectionFocus} from "../util/selection";
-import {getHistoryMaxWaitFactor, getHistoryRecordWait} from "../util/historySchedule";
+import {
+    cancelIdleHistory,
+    getHistoryMaxWaitFactor,
+    getHistoryRecordWait,
+    scheduleIdleHistory,
+} from "../util/historySchedule";
 import {scheduleRenderToc} from "../util/toc";
 import {highlightToolbarIR} from "./highlightToolbarIR";
 import {input} from "./input";
@@ -25,6 +30,7 @@ export const recordHistory = (vditor: IVditor, options = {
     if (vditor.ir.composingLock) {
         return;
     }
+    cancelIdleHistory(vditor.ir);
     const text = getMarkdown(vditor);
     if (options.enableInput) {
         fireContentInput(vditor, text);
@@ -69,8 +75,9 @@ export const processAfterRender = (vditor: IVditor, options = {
         vditor.options.undoDelay,
         getHistoryMaxWaitFactor(vditor),
     );
+    cancelIdleHistory(vditor.ir);
     vditor.ir.processTimeoutId = window.setTimeout(() => {
-        recordHistory(vditor, options);
+        scheduleIdleHistory(vditor.ir, () => recordHistory(vditor, options));
     }, wait);
 };
 

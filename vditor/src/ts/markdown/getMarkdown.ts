@@ -1,4 +1,4 @@
-import {buildEditorHtmlForMarkdown} from "../codeBlock/codeMirrorManager";
+import {buildEditorHtmlForMarkdown, restoreVoidHtmlInlineTokens} from "../codeBlock/codeMirrorManager";
 import {formatMs, logPerf} from "../util/log";
 
 export const getMarkdown = (vditor: IVditor) => {
@@ -6,7 +6,8 @@ export const getMarkdown = (vditor: IVditor) => {
     const totalStart = debug ? performance.now() : 0;
 
     let stepStart = debug ? performance.now() : 0;
-    const html = buildEditorHtmlForMarkdown(vditor);
+    const voidHtmlSources: string[] = [];
+    const html = buildEditorHtmlForMarkdown(vditor, voidHtmlSources);
     const buildHtmlMs = debug ? performance.now() - stepStart : 0;
 
     stepStart = debug ? performance.now() : 0;
@@ -16,6 +17,7 @@ export const getMarkdown = (vditor: IVditor) => {
     } else if (vditor.currentMode === "ir") {
         markdown = vditor.lute.VditorIRDOM2Md(html);
     }
+    markdown = restoreVoidHtmlInlineTokens(markdown, voidHtmlSources);
     const toMarkdownMs = debug ? performance.now() - stepStart : 0;
 
     logPerf(debug, "[vditor markdown] getMarkdown", {

@@ -755,7 +755,11 @@
   > pre.vditor-code-block-placeholder code {
     display: block !important;
     white-space: pre;
-    overflow-x: auto;
+    overflow: auto;
+    // Match the mounted CodeMirror geometry to avoid layout shifts on mount/teardown.
+    max-height: var(--cm-block-max-height, none);
+    line-height: calc(var(--vscode-editor-font-size, 13px) * 1.35);
+    contain: content;
     font-family: var(--code-font-family, var(--editor-font-family, monospace));
     tab-size: 4;
   }
@@ -827,8 +831,10 @@
   }
 }
 
-.vditor-wysiwyg:has(.cm-focused),
-.vditor-ir:has(.cm-focused) {
+// Class toggled from JS on CodeMirror focus (see bindCodeMirrorFocusClass): a root-anchored
+// `:has(.cm-focused)` made every DOM mutation restyle the whole document while typing.
+.vditor-wysiwyg.vditor--cm-focused,
+.vditor-ir.vditor--cm-focused {
   user-select: none;
 
   .vditor-cm-host .cm-editor,

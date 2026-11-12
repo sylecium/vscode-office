@@ -19,6 +19,7 @@ handler.on("open", async (md) => {
     value: content,
     cdn: rootPath,
     preventMacOptionKey: config.preventMacOptionKey !== false,
+    shortcuts: config.markdownShortcuts || {},
     height: '100%',
     outline: {
       position: 'left',
@@ -39,8 +40,6 @@ handler.on("open", async (md) => {
       editor?.markSaved();
     }),
     onAboutOpen: () => handler.emit('openAbout'),
-    onSponsorLogoClick: () => handler.emit('openSponsor'),
-    onSponsorSiteClick: () => handler.emit('openExternal', 'https://database-client.com/'),
     onLinkClick(payload, event) {
       const isCompose = event.metaKey || event.ctrlKey;
       if (payload.action !== "dblclick" && !(payload.action === "click" && isCompose)) {
@@ -138,6 +137,9 @@ handler.on("open", async (md) => {
       handler.on('markdownConfig', (update) => {
         if (Object.prototype.hasOwnProperty.call(update, 'preventMacOptionKey')) {
           editor.vditor.options.preventMacOptionKey = update.preventMacOptionKey !== false;
+        }
+        if (update.markdownShortcuts !== undefined) {
+          editor.setShortcuts(update.markdownShortcuts || {});
         }
         if (update.editorTheme !== undefined) {
           editor.setEditorTheme(update.editorTheme);

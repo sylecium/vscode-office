@@ -1,6 +1,7 @@
 import { recordHistory as recordIrHistory } from "../ir/process";
 import { recordHistory as recordWysiwygHistory } from "../wysiwyg/afterRenderEvent";
 import { clearPendingHistoryTimeout } from "./instantHistory";
+import { scheduleIdleHistory } from "./historySchedule";
 import {
     clearHistoryInputBuffer,
     historyInputBufferHasText,
@@ -28,6 +29,26 @@ export const flushBufferedHistory = (vditor: IVditor, options = defaultRecordOpt
     } else if (vditor.currentMode === "ir") {
         recordIrHistory(vditor, options);
     }
+};
+
+/**
+ * Word-boundary flush from typing: run the snapshot when the main thread is idle instead of
+ * inside the keystroke handler, so the typed character is painted immediately.
+ */
+export const flushBufferedHistoryDeferred = (vditor: IVditor, options = defaultRecordOptions) => {
+    clearPendingHistoryTimeout(vditor);
+    const owner = vditor.currentMode === "ir" ? vditor.ir : vditor.wysiwyg;
+    const mode = vditor.currentMode;
+    scheduleIdleHistory(owner, () => {
+        if (vditor.currentMode !== mode) {
+            return;
+        }
+        if (mode === "wysiwyg") {
+            recordWysiwygHistory(vditor, options);
+        } else if (mode === "ir") {
+            recordIrHistory(vditor, options);
+        }
+    });
 };
 
 export const flushBufferedHistoryOnClick = (vditor: IVditor) => {

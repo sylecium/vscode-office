@@ -14,7 +14,14 @@ export async function exportDocx(exportFilePath, data, config) {
     console.log("[pretty-md-pdf] Exported to file: " + exportFilePath)
     const html = await replaceDynamicContentWithImages(data, config, exportFilePath)
     const htmlToDocx = require("vscode-html-to-docx");
-    const exportTask = await htmlToDocx(html, '', {}, '');
+    const { primaryFontName } = require("./exportTheme");
+    const style = (config && config.style) || {};
+    const docxOptions = {};
+    const font = primaryFontName(style.fontFamily);
+    if (font) docxOptions.font = font;
+    // html-to-docx expects half-points: px * 0.75 (pt) * 2.
+    if (typeof style.fontSize === 'number') docxOptions.fontSize = Math.round(style.fontSize * 1.5);
+    const exportTask = await htmlToDocx(html, '', docxOptions, '');
     const buffer = Buffer.from(await exportTask.arrayBuffer());
     fs.writeFileSync(exportFilePath, buffer)
 }
@@ -26,7 +33,7 @@ export async function exportByType(filePath, data, type, config) {
 
     console.log("[pretty-md-pdf] Exporting (" + type + ") ...")
     const originPath = path.parse(filePath)
-    let targetFilePath = originPath.dir + "/" + originPath.name + "." + type
+    let targetFilePath = config.outputPath || (originPath.dir + "/" + originPath.name + "." + type)
 
     // export html
     if (type == "html") {

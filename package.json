@@ -2,7 +2,7 @@
 	"name": "vscode-office",
 	"displayName": "Office Viewer",
 	"description": "View word, excel, powerpoint files and using WYSIWYG editor for markdown.",
-	"version": "4.2.2",
+	"version": "4.3.0",
 	"publisher": "cweijan",
 	"icon": "image/logo.png",
 	"engines": {
@@ -668,6 +668,144 @@
 						],
 						"default": "wysiwyg",
 						"markdownDescription": "Default edit mode for the Markdown editor."
+					},
+					"vscode-office.markdownShortcuts": {
+						"type": "object",
+						"default": {},
+						"additionalProperties": {
+							"type": "string"
+						},
+						"properties": {
+							"bold": {
+								"type": "string",
+								"description": "Bold"
+							},
+							"italic": {
+								"type": "string",
+								"description": "Italic"
+							},
+							"strike": {
+								"type": "string",
+								"description": "Strikethrough"
+							},
+							"text-color": {
+								"type": "string",
+								"description": "Open the text/background color panel"
+							},
+							"link": {
+								"type": "string",
+								"description": "Insert link"
+							},
+							"list": {
+								"type": "string",
+								"description": "Bullet list"
+							},
+							"ordered-list": {
+								"type": "string",
+								"description": "Numbered list"
+							},
+							"check": {
+								"type": "string",
+								"description": "Task list"
+							},
+							"quote": {
+								"type": "string",
+								"description": "Quote"
+							},
+							"code": {
+								"type": "string",
+								"description": "Code block"
+							},
+							"inline-code": {
+								"type": "string",
+								"description": "Inline code"
+							},
+							"table": {
+								"type": "string",
+								"description": "Insert table"
+							},
+							"line": {
+								"type": "string",
+								"description": "Horizontal rule"
+							},
+							"heading1": {
+								"type": "string",
+								"description": "Heading 1"
+							},
+							"heading2": {
+								"type": "string",
+								"description": "Heading 2"
+							},
+							"heading3": {
+								"type": "string",
+								"description": "Heading 3"
+							},
+							"heading4": {
+								"type": "string",
+								"description": "Heading 4"
+							},
+							"heading5": {
+								"type": "string",
+								"description": "Heading 5"
+							},
+							"heading6": {
+								"type": "string",
+								"description": "Heading 6"
+							},
+							"paragraph": {
+								"type": "string",
+								"description": "Turn heading into paragraph"
+							},
+							"moveBlockUp": {
+								"type": "string",
+								"description": "Move block up (default alt+up)"
+							},
+							"moveBlockDown": {
+								"type": "string",
+								"description": "Move block down (default alt+down)"
+							},
+							"copyBlockUp": {
+								"type": "string",
+								"description": "Copy block up (default shift+alt+up)"
+							},
+							"copyBlockDown": {
+								"type": "string",
+								"description": "Copy block down (default shift+alt+down)"
+							},
+							"deleteBlock": {
+								"type": "string",
+								"description": "Delete block (default ctrl+shift+k)"
+							},
+							"selectBlock": {
+								"type": "string",
+								"description": "Select block (default ctrl+l)"
+							},
+							"insertBlockBelow": {
+								"type": "string",
+								"description": "Insert empty block below (default ctrl+enter)"
+							},
+							"insertBlockAbove": {
+								"type": "string",
+								"description": "Insert empty block above (default ctrl+shift+enter)"
+							},
+							"outline": {
+								"type": "string",
+								"description": "Toggle outline"
+							},
+							"find": {
+								"type": "string",
+								"description": "Find"
+							},
+							"undo": {
+								"type": "string",
+								"description": "Undo"
+							},
+							"redo": {
+								"type": "string",
+								"description": "Redo"
+							}
+						},
+						"markdownDescription": "Custom keyboard shortcuts of the Markdown editor: command -> combo, e.g. `{\"bold\": \"ctrl+shift+b\", \"moveBlockDown\": \"ctrl+alt+j\"}`. Modifiers: `ctrl`, `alt`, `shift`, `meta`, `mod` (Cmd on macOS, Ctrl elsewhere). Keys: letters, digits, `up`/`down`/`left`/`right`, `enter`, `tab`, `space`, `f1`-`f12`. A remapped command loses its default shortcut; an empty string disables it. Applied live."
 					},
 					"vscode-office.restoreViewState": {
 						"type": "boolean",

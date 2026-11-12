@@ -1,5 +1,24 @@
 # Change log
 
+# 4.3.0 (local build)
+
+Markdown Editor performance:
+
+- Fix code blocks refreshing one by one while scrolling: lazy CodeMirror mounting now observes the real scroll container with a 1500px pre-mount margin, renders with the grammar already loaded and batches mounts per frame.
+- Remove a root-anchored `:has(.cm-focused)` CSS rule that restyled the whole document on every keystroke.
+- Undo snapshots ignore CodeMirror mount state, avoiding 1s diff stalls; word-boundary history snapshots run when idle.
+- No more full-document serialization on spaces; plain-text fast path for every document size.
+- Apply minimal text edits to the VS Code document instead of replacing it entirely.
+- Fix inline HTML void elements (e.g. `<img width>`) being dropped on save.
+
+New:
+
+- Text and background color for the selection.
+- Drag to resize images (handles + reset), saved as `<img width>`.
+- Export dialog for PDF / HTML / DOCX: editor theme or classic, font, size, line height, code font, page format, margins, output location.
+- Configurable shortcuts via `vscode-office.markdownShortcuts`.
+- Sponsor banner removed.
+
 # 4.2.2 2026-10-15
 
 Markdown Editor:

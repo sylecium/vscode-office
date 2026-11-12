@@ -4,6 +4,7 @@ import {
     canUndoActiveCodeMirror,
     deactivateAllCodeMirrors,
     isInsideCodeMirror,
+    normalizeCodeBlocksForSnapshot,
     redoActiveCodeMirror,
     remountCodeMirrorsAfterDomReplace,
     undoActiveCodeMirror,
@@ -33,6 +34,8 @@ class Undo {
     constructor() {
         this.resetStack();
         this.dmp = new diff_match_patch();
+        // Never block typing for long on a pathological diff (default is 1s).
+        this.dmp.Diff_Timeout = 0.15;
     }
 
     public clearStack(vditor: IVditor) {
@@ -261,6 +264,7 @@ class Undo {
         }
         // 移除数学公式、plantuml 渲染 https://github.com/siyuan-note/siyuan/issues/537
         const cloneElement = vditor[vditor.currentMode].element.cloneNode(true) as HTMLElement;
+        normalizeCodeBlocksForSnapshot(cloneElement);
         cloneElement.querySelectorAll(`.vditor-${vditor.currentMode}__preview[data-render='1']`)
             .forEach((item: HTMLElement) => {
                 if (!item.firstElementChild) {

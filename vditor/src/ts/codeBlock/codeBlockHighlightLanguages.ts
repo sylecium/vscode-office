@@ -79,6 +79,18 @@ export const resolveCodeMirrorHighlightLanguage = (languageName: string): string
     return HIGHLIGHT_LANGUAGE_ALIASES[lower] ?? lower;
 };
 
+/** Synchronous lookup: returns the grammar only if it is static or already loaded. */
+export const getLoadedCodeMirrorHighlightLanguage = (
+    languageName: string,
+): LanguageSupport | undefined => {
+    const resolved = resolveCodeMirrorHighlightLanguage(languageName);
+    const staticSupport = STATIC_LANGUAGE_SUPPORTS[resolved];
+    if (staticSupport) {
+        return staticSupport();
+    }
+    return languageMap[resolved]?.support;
+};
+
 export const loadCodeMirrorHighlightLanguage = (
     languageName: string,
 ): Promise<LanguageSupport | undefined> => {

@@ -30,7 +30,9 @@ export const isUnlimitedHistoryDefer = (maxWaitFactor: number): boolean => {
  * 文档越大，放行倍数越高；≥5 万字仅 debounce，不设放行上限。
  */
 export const computeHistoryMaxWaitFactor = (markdownLength: number): number => {
-    if (markdownLength >= HISTORY_UNLIMITED_DEFER_LENGTH) {
+    // Beyond a README-sized document, full serialization is costly: never force a flush
+    // while the user keeps typing, only record once they pause (undoDelay).
+    if (markdownLength >= LENGTH_README || markdownLength >= HISTORY_UNLIMITED_DEFER_LENGTH) {
         return HISTORY_UNLIMITED_DEFER_FACTOR;
     }
     if (markdownLength >= LENGTH_LARGE_PAGE) {
@@ -87,4 +89,40 @@ export const getHistoryRecordWait = (
     }
     const maxWait = undoDelay * maxWaitFactor;
     return Date.now() - lastRecordAt >= maxWait ? 0 : undoDelay;
+};
+
+const pendingIdleHistory = new WeakMap<object, number>();
+
+type IdleWindow = Window & {
+    requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    cancelIdleCallback?: (id: number) => void;
+};
+
+/** Cancel a history record scheduled with scheduleIdleHistory. */
+export const cancelIdleHistory = (owner: object) => {
+    const id = pendingIdleHistory.get(owner);
+    if (id === undefined) {
+        return;
+    }
+    const w = window as IdleWindow;
+    if (w.cancelIdleCallback) {
+        w.cancelIdleCallback(id);
+    } else {
+        window.clearTimeout(id);
+    }
+    pendingIdleHistory.delete(owner);
+};
+
+/** Run the (expensive) history snapshot when the main thread is idle, to not delay keystrokes. */
+export const scheduleIdleHistory = (owner: object, callback: () => void) => {
+    cancelIdleHistory(owner);
+    const w = window as IdleWindow;
+    const run = () => {
+        pendingIdleHistory.delete(owner);
+        callback();
+    };
+    const id = w.requestIdleCallback
+        ? w.requestIdleCallback(run, { timeout: 300 })
+        : window.setTimeout(run, 0);
+    pendingIdleHistory.set(owner, id);
 };

@@ -179,3 +179,22 @@
 | Toggle Input                | Tab                                  |
 | Move Caret to Previous Cell | Shift Tab / ⇧ Tab``Backspace |
 | Move Caret to Next Cell     | Tab                                  |
+
+## Custom shortcuts
+
+Remap any Markdown editor command with the `vscode-office.markdownShortcuts` setting (applied live):
+
+```jsonc
+"vscode-office.markdownShortcuts": {
+  "bold": "ctrl+shift+b",        // Ctrl+B no longer bolds
+  "text-color": "ctrl+alt+c",
+  "heading2": "ctrl+shift+2",
+  "moveBlockDown": "ctrl+alt+j",
+  "deleteBlock": ""              // disable Ctrl+Shift+K
+}
+```
+
+- Modifiers: `ctrl`, `alt`, `shift`, `meta`, `mod` (Cmd on macOS, Ctrl elsewhere).
+- Keys: letters, digits, `up` / `down` / `left` / `right`, `enter`, `tab`, `space`, `escape`, `f1`-`f12`, symbols.
+- Commands: toolbar items (`bold`, `italic`, `strike`, `text-color`, `link`, `list`, `ordered-list`, `check`, `quote`, `code`, `inline-code`, `table`, `line`, `outline`, `find`, `undo`, `redo`), `heading1`-`heading6`, `paragraph`, and block commands (`moveBlockUp`, `moveBlockDown`, `copyBlockUp`, `copyBlockDown`, `deleteBlock`, `selectBlock`, `insertBlockBelow`, `insertBlockAbove`).
+- A combo also bound to a VS Code command (e.g. `ctrl+shift+b` = Run Build Task) may be handled by VS Code as well: prefer free combos.
