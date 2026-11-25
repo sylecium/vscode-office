@@ -708,7 +708,6 @@ interface IVditor {
         selectPopover?: HTMLDivElement,
         popover: HTMLDivElement,
         afterRenderTimeoutId: number,
-        afterRenderLastAt: number,
         hlToolbarTimeoutId: number,
         preventInput: boolean,
         composingLock: boolean,
@@ -721,7 +720,6 @@ interface IVditor {
         composingLock: boolean,
         preventInput: boolean,
         processTimeoutId: number,
-        afterRenderLastAt: number,
         hlToolbarTimeoutId: number,
     };
 }

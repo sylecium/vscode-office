@@ -3,7 +3,7 @@ import {fireContentInput} from "../util/saveToolbarState";
 import {removeCurrentToolbar} from "../toolbar/setToolbar";
 import {accessLocalStorage} from "../util/compatibility";
 import {saveCacheFocus} from "../util/cacheFocus";
-import {clearHistoryInputBuffer, setHistoryPending} from "../util/historyInputBufferState";
+import {clearHistoryInputBuffer, getHistoryBurstStart, setHistoryPending} from "../util/historyInputBufferState";
 import {listToggle} from "../util/fixBrowserBehavior";
 import {hasClosestBlock, hasClosestByAttribute, hasClosestByClassName, hasClosestByMatchTag} from "../util/hasClosest";
 import {getEditorRange, setRangeByWbr, setSelectionFocus} from "../util/selection";
@@ -32,7 +32,9 @@ export const recordHistory = (vditor: IVditor, options = {
     }
     cancelIdleHistory(vditor.ir);
     setHistoryPending(vditor);
-    const text = getMarkdown(vditor);
+    // Full-document serialization: skipped when nothing reads it, e.g. when a document opens.
+    const needsText = options.enableInput || vditor.options.counter.enable || vditor.options.cache.enable;
+    const text = needsText ? getMarkdown(vditor) : "";
     if (options.enableInput) {
         fireContentInput(vditor, text);
     }
@@ -57,7 +59,6 @@ export const recordHistory = (vditor: IVditor, options = {
         scheduleRenderToc(vditor);
     }
 
-    vditor.ir.afterRenderLastAt = Date.now();
     clearHistoryInputBuffer(vditor);
 };
 
@@ -71,13 +72,14 @@ export const processAfterRender = (vditor: IVditor, options = {
     }
 
     clearTimeout(vditor.ir.processTimeoutId);
-    const wait = getHistoryRecordWait(
-        vditor.ir.afterRenderLastAt,
-        vditor.options.undoDelay,
-        getHistoryMaxWaitFactor(vditor),
-    );
     cancelIdleHistory(vditor.ir);
     setHistoryPending(vditor, options);
+    const wait = getHistoryRecordWait(
+        getHistoryBurstStart(vditor),
+        vditor.options.undoDelay,
+        getHistoryMaxWaitFactor(vditor),
+        options.enableAddUndoStack,
+    );
     vditor.ir.processTimeoutId = window.setTimeout(() => {
         scheduleIdleHistory(vditor.ir, () => recordHistory(vditor, options));
     }, wait);
