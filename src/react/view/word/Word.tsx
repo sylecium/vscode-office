@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { handler, vscodeApi } from "../../util/vscode";
 import { loadOfficeBuffer } from "../../util/loadOfficeContent";
 import SponsorBar from "../components/SponsorBar";
+import { capturePrintWindow } from "./capturePrint";
 import "./Word.css";
 
 type WordColorMode = "light" | "adaptive";
@@ -115,6 +116,8 @@ export default function Word() {
             })
             .emit("init");
     }, [loadDocument]);
+
+    useEffect(() => capturePrintWindow((html) => handler.emit("print", html)), []);
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {

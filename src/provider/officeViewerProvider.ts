@@ -8,6 +8,7 @@ import { handleSvg } from './handlers/svgHandler';
 import { isVirtualUri, readUriText } from './handlers/officeContent';
 import { handleCommonEvent } from './compress/commonHandler';
 import { TelemetryService } from '@/service/telemetryService';
+import { printDocxToPdf } from '@/service/docxPrint';
 import { extensionResource, getExtensionResourceRoots, readExtensionText } from '@/common/extensionResource';
 
 /**
@@ -63,6 +64,7 @@ export class OfficeViewerProvider implements vscode.CustomReadonlyEditorProvider
 			case '.docx':
 			case '.dotx':
 				route = 'word';
+				handler.on('print', (html: string) => printDocxToPdf(this.context, uri, html));
 				break;
 			case '.pptx':
 			case '.pptm':
