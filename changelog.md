@@ -1,5 +1,14 @@
 # Change log
 
+# 4.3.3 2026-11-25
+
+Security fixes for the Markdown Editor. All users of 4.3.2 and earlier should update.
+
+- A crafted Markdown file could run scripts or navigate the editor away as soon as it was opened.
+- A click on a crafted Mermaid diagram could overwrite the file or open a web address.
+
+What changes: frames (including embedded videos), forms and stylesheets inside a document are no longer active, and Mermaid `click` callbacks are disabled. Links in diagrams are kept.
+
 # 4.3.2 2026-11-25
 
 Markdown Editor:
