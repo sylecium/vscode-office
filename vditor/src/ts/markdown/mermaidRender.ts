@@ -29,7 +29,8 @@ const MERMAID_BASE_CONFIG = {
         leftPadding: 75,
         rightPadding: 20,
     },
-    securityLevel: "loose",
+    // "loose" lets a diagram bind a click to any global function, such as the one that saves the file.
+    securityLevel: "strict",
     sequence: {
         boxMargin: 8,
         diagramMarginX: 8,
