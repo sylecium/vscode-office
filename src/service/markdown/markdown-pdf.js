@@ -126,6 +126,16 @@ function convertMarkdownToHtml(filename, type, text, config) {
         })
         return root.toString()
       }
+      // Inline <img> (e.g. an image resized in the editor) needs the same path conversion.
+      md.renderer.rules.html_inline = function (tokens, idx) {
+        const html = tokens[idx].content
+        if (!/^<img\s/i.test(html)) return html
+        const root = parse(html)
+        const img = root.querySelector("img")
+        const src = img.getAttribute("src")
+        if (src) img.setAttribute("src", convertImgPath(src, filename))
+        return root.toString()
+      }
     }
 
     md.use(markdownItFrontMatterExport)
@@ -143,6 +153,7 @@ function convertMarkdownToHtml(filename, type, text, config) {
 
   } catch (error) {
     showErrorMessage("convertMarkdownToHtml()", error)
+    throw error
   }
 }
 

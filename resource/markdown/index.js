@@ -38,7 +38,7 @@ handler.on("open", async (md) => {
     toolbar: await getToolbar(rootPath, () => {
       handler.emit('doSave', getMarkdownValue());
       editor?.markSaved();
-    }),
+    }, () => editor?.flushPendingInput()),
     onAboutOpen: () => handler.emit('openAbout'),
     onLinkClick(payload, event) {
       const isCompose = event.metaKey || event.ctrlKey;
@@ -120,6 +120,12 @@ handler.on("open", async (md) => {
     },
     after() {
       bindLinkErrors(handler, editor);
+      // Large documents are only serialized once typing pauses: send pending edits before
+      // the tab loses focus or a keyboard command (close, switch editor) can discard them.
+      window.addEventListener('blur', () => editor.flushPendingInput());
+      window.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey) editor.flushPendingInput();
+      }, true);
       const { viewerSettings } = md;
       observeWorkspaceAbsoluteImages(document.getElementById('vditor'), workspaceBaseUrl);
       if (viewerSettings?.enabled) {

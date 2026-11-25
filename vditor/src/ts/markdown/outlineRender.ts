@@ -164,7 +164,7 @@ export const outlineRender = (contentElement: HTMLElement, targetElement: Elemen
 
     targetElement.firstElementChild?.addEventListener("click", (event: Event) => {
         let target = event.target as HTMLElement;
-        while (target && !target.isEqualNode(targetElement)) {
+        while (target && target !== targetElement) {
             if (target.classList.contains("vditor-outline__action")) {
                 if (target.classList.contains("vditor-outline__action--close")) {
                     target.classList.remove("vditor-outline__action--close");

@@ -11,7 +11,7 @@ const isEditorAreaFocused = (vditor: IVditor) => {
         return false;
     }
     const editorElement = vditor[vditor.currentMode].element;
-    if (editorElement.isEqualNode(activeElement) || editorElement.contains(activeElement)) {
+    if (editorElement.contains(activeElement)) {
         return true;
     }
     const editorRoot = editorElement.parentElement;

@@ -66,6 +66,7 @@ import {
 } from "./ts/util/globalLocalStorageSettings";
 import { exportExportSettings, ExportThemeSettings } from "./ts/util/exportThemeSettings";
 import { applyShortcuts } from "./ts/pro/shortcuts";
+import { flushPendingHistory } from "./ts/util/historyInputBuffer";
 import {
     buildSettingsPanelHTML,
     refreshAISettingsToolbarPanel,
@@ -178,6 +179,11 @@ class Vditor {
     /** 获取 Markdown 内容 */
     public getValue() {
         return getMarkdown(this.vditor);
+    }
+
+    /** Send the edits still waiting for a debounce to the input callback. */
+    public flushPendingInput() {
+        flushPendingHistory(this.vditor);
     }
 
     /** 标记当前内容已保存，并禁用工具栏保存按钮 */

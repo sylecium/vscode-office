@@ -100,7 +100,7 @@ export const input = (vditor: IVditor, range: Range, event?: InputEvent) => {
         }
         markPrepareStep("resolve link-ref edit scope");
 
-        const isWYSIWYGElement = blockElement.isEqualNode(vditor.wysiwyg.element);
+        const isWYSIWYGElement = blockElement === vditor.wysiwyg.element;
         const footnoteElement = hasClosestByAttribute(blockElement, "data-type", "footnotes-block");
         markPrepareStep("detect editor and footnote scope");
 
@@ -147,7 +147,7 @@ export const input = (vditor: IVditor, range: Range, event?: InputEvent) => {
                 markPrepareStep("check code fence guard");
                 // 添加链接引用
                 vditor.wysiwyg.element.querySelectorAll("[data-type='link-ref-defs-block']").forEach((item) => {
-                    if (item && !(blockElement as HTMLElement).isEqualNode(item)) {
+                    if (item && blockElement !== item) {
                         html += item.outerHTML;
                         item.remove();
                     }
@@ -156,7 +156,7 @@ export const input = (vditor: IVditor, range: Range, event?: InputEvent) => {
 
                 // 添加脚注
                 vditor.wysiwyg.element.querySelectorAll("[data-type='footnotes-block']").forEach((item) => {
-                    if (item && !(blockElement as HTMLElement).isEqualNode(item)) {
+                    if (item && blockElement !== item) {
                         html += item.outerHTML;
                         item.remove();
                     }

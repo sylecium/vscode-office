@@ -113,7 +113,7 @@ export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?
         blockElement = vditor.ir.element;
     }
 
-    const isIRElement = blockElement.isEqualNode(vditor.ir.element);
+    const isIRElement = blockElement === vditor.ir.element;
     const footnoteElement = hasClosestByAttribute(blockElement, "data-type", "footnotes-block");
     let html = "";
     if (!isIRElement) {
@@ -160,7 +160,7 @@ export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?
         if (!blockElement.textContent.startsWith("```")) {
             // 添加链接引用
             vditor.ir.element.querySelectorAll("[data-type='link-ref-defs-block']").forEach((item) => {
-                if (item && !(blockElement as HTMLElement).isEqualNode(item)) {
+                if (item && blockElement !== item) {
                     html += item.outerHTML;
                     item.remove();
                 }
@@ -168,7 +168,7 @@ export const input = (vditor: IVditor, range: Range, ignoreSpace = false, event?
 
             // 添加脚注
             vditor.ir.element.querySelectorAll("[data-type='footnotes-block']").forEach((item) => {
-                if (item && !(blockElement as HTMLElement).isEqualNode(item)) {
+                if (item && blockElement !== item) {
                     html += item.outerHTML;
                     item.remove();
                 }

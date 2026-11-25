@@ -1014,7 +1014,7 @@ const moveBlockSibling = (element: HTMLElement, direction: "up" | "down", editor
     if (!sibling) {
         return false;
     }
-    if (!element.parentElement?.isEqualNode(editorElement) && element.tagName !== "LI") {
+    if (element.parentElement !== editorElement && element.tagName !== "LI") {
         return false;
     }
     if (direction === "up") {

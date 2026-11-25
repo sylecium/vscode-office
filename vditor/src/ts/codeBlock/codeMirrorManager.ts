@@ -28,6 +28,7 @@ import {
 import { resolveCodeMirrorCopyPayload } from "./codeMirrorRichCopy";
 import { stopHandledCodeMirrorKeymap, vditorCodeMirrorSetup } from "./codeMirrorSetup";
 import { mathRender } from "../markdown/mathRender";
+import { setHistoryPending } from "../util/historyInputBufferState";
 import { mermaidRender } from "../markdown/mermaidRender";
 import { plantumlRender } from "../markdown/plantumlRender";
 import {
@@ -514,12 +515,13 @@ const enforceMaxMounted = (vditor: IVditor, keepBlock: HTMLElement) => {
     // Read all geometry in one pass, then destroy: avoids interleaved layout reads/writes.
     const bounds = getViewportBounds(vditor);
     const viewportCenter = (bounds.top + bounds.bottom) / 2;
+    // Blocks inside the pre-mount zone are never evicted: the observer only reports changes,
+    // so they would stay plain text once scrolled into view. The limit is therefore soft.
     const candidates = mounted
         .filter((block) => isLazyManagedCodeBlock(block) && !bindings.get(block)?.view.hasFocus)
-        .map((block) => {
-            const rect = block.getBoundingClientRect();
-            return { block, distance: Math.abs(rect.top + rect.height / 2 - viewportCenter) };
-        })
+        .map((block) => ({ block, rect: block.getBoundingClientRect() }))
+        .filter(({ rect }) => !isRectNearViewport(rect, bounds))
+        .map(({ block, rect }) => ({ block, distance: Math.abs(rect.top + rect.height / 2 - viewportCenter) }))
         .sort((a, b) => b.distance - a.distance);
     let excess = mounted.length - LAZY_CM_MAX_MOUNTED + 1;
     for (const { block } of candidates) {
@@ -874,6 +876,7 @@ const syncRenderOptions = {
 
 const scheduleSync = (binding: CodeMirrorBinding, vditor: IVditor) => {
     window.clearTimeout(binding.syncTimer);
+    setHistoryPending(vditor, syncRenderOptions);
     binding.syncTimer = window.setTimeout(() => {
         if (vditor.currentMode === "wysiwyg") {
             afterRenderEvent(vditor, syncRenderOptions);
@@ -1497,6 +1500,8 @@ export const renderCodeBlocksInScope = (vditor: IVditor, scope: HTMLElement) => 
     if (blocks.length === 0) {
         return;
     }
+    // Spinning replaces block elements: release the editors of the detached ones.
+    pruneDetachedLazyBlocks();
     preloadCodeBlockLanguages(blocks);
     const bounds = getViewportBounds(vditor);
     const nearFlags = blocks.map((block) =>

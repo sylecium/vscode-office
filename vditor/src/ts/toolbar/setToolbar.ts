@@ -123,7 +123,7 @@ export const showToolbar = (toolbar: { [key: string]: HTMLElement }, names: stri
 export const hidePanel = (vditor: IVditor, panels: string[], exceptElement?: HTMLElement) => {
     if (panels.includes("subToolbar")) {
         vditor.toolbar.element.querySelectorAll(".vditor-hint").forEach((item: HTMLElement) => {
-            if (exceptElement && item.isEqualNode(exceptElement)) {
+            if (exceptElement && item === exceptElement) {
                 return;
             }
             item.style.display = "none";

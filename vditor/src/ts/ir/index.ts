@@ -286,7 +286,7 @@ class IR {
                 }
             }
 
-            if (event.target.isEqualNode(this.element) && this.element.lastElementChild && range.collapsed) {
+            if (event.target === this.element && this.element.lastElementChild && range.collapsed) {
                 const lastRect = this.element.lastElementChild.getBoundingClientRect();
                 if (event.y > lastRect.top + lastRect.height) {
                     if (this.element.lastElementChild.tagName === "P" &&

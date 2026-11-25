@@ -8,7 +8,7 @@ export const getEditorRange = (vditor: IVditor) => {
     const element = vditor[vditor.currentMode].element;
     if (getSelection().rangeCount > 0) {
         range = getSelection().getRangeAt(0);
-        if (element.isEqualNode(range.startContainer) || element.contains(range.startContainer)) {
+        if (element.contains(range.startContainer)) {
             return range;
         }
     }
@@ -28,7 +28,7 @@ export const getSelectionRangeInEditor = (editor: HTMLElement): Range | null => 
         return null;
     }
     const range = selection.getRangeAt(0);
-    if (editor.isEqualNode(range.startContainer) || editor.contains(range.startContainer)) {
+    if (editor.contains(range.startContainer)) {
         return range;
     }
     return null;
@@ -259,7 +259,7 @@ export const selectIsEditor = (editor: HTMLElement, range?: Range) => {
     }
     const container = range.commonAncestorContainer;
 
-    return editor.isEqualNode(container) || editor.contains(container);
+    return editor.contains(container);
 };
 
 const getObsidianTagSourceElement = (tag: HTMLElement): HTMLElement | null => {
