@@ -1,5 +1,27 @@
 # Change log
 
+# 4.3.1 2026-11-25
+
+Markdown Editor:
+
+- Open documents faster: the Markdown engine is loaded together with the editor, and a document is no longer converted back to Markdown when it opens.
+- Fix undo leaving the first letters of a word after a pause in typing.
+- Less typing lag in large documents, with pending edits saved before they could be lost.
+- Switching editors replaces the tab instead of adding a second one.
+- Docx export keeps formatting (code line breaks, checkbox labels, callout titles, highlights, images), and export errors are shown.
+- PDF / HTML / DOCX export runs directly from the context menu again. The export dialog added in 4.3.0 is removed.
+
+Other viewers:
+
+- Fix data loss when saving spreadsheets and CSV files (cell types and encodings are kept) and when extracting archives.
+- Print works in the Docx viewer.
+
+Security and privacy:
+
+- Opened files can no longer run scripts or overwrite local data.
+- Telemetry is removed.
+- Vulnerable dependencies are updated.
+
 # 4.3.0 (local build)
 
 Markdown Editor performance:
