@@ -942,7 +942,7 @@
 		"dev:web": "OFFICE_EXTENSION_TARGET=web vite --mode=development",
 		"lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
 		"build": "vite build --mode=production",
-		"test": "node --test test/spreadsheet/roundtrip.test.mjs test/archive/extractTarget.test.mjs test/markdown/documentSync.test.mjs test/markdown/historySchedule.test.mjs",
+		"test": "node --test test/spreadsheet/roundtrip.test.mjs test/archive/extractTarget.test.mjs test/markdown/documentSync.test.mjs test/markdown/historySchedule.test.mjs test/markdown/instantPreview.test.mjs",
 		"package": "vsce package --no-dependencies",
 		"publish": "vsce publish --no-dependencies && ovsx publish --no-dependencies",
 		"vscode:prepublish": "npm run build"

@@ -22,6 +22,7 @@ import { ViewerSettingsService } from '@/service/viewerSettingsService';
 import { parseWebviewResourceUri } from '@/common/webviewUri';
 import { MarkdownDocumentSync } from '@/service/markdown/documentSync';
 import { openLinkedFile } from '@/service/markdown/linkedFile';
+import { escapePreviewAttribute, renderInstantPreview } from '@/service/markdown/instantPreview';
 import { openWebLink } from '@/common/openWebLink';
 
 function getRuntimePlatform(): string {
@@ -352,9 +353,10 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             vscode.Uri.file(getWorkspacePath(folderPath)) : folderPath;
         const baseUrl = webview.asWebviewUri(basePath).toString().replace(/\?.+$/, '').replace('https://git', 'https://file');
         const indexHtml = await readExtensionText(this.context, 'resource', 'markdown', 'index.html');
-        webview.html = Util.buildPath(
-            indexHtml.replace("{{baseUrl}}", baseUrl), webview, contextUri
-        );
+        // Filled in after buildPath, which would rewrite the document's own relative links.
+        webview.html = Util.buildPath(indexHtml.replace("{{baseUrl}}", baseUrl), webview, contextUri)
+            .replace('{{documentCacheId}}', () => escapePreviewAttribute(`${uri.scheme}:${uri.toString()}`))
+            .replace('<!--instant-preview-->', () => renderInstantPreview(content));
     }
 
     private cancelAIPolish() {

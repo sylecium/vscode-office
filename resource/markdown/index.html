@@ -7,11 +7,48 @@
     <meta name='viewport' content='width=device-width, initial-scale=1'>
     <link rel="stylesheet" href="dist/index.css" />
     <link rel="stylesheet" href="index.css" />
+    <link rel="preload" as="script" href="dist/index.min.js" />
+    <link rel="preload" as="script" href="dist/js/lute/lute.min.js" />
     <base href="{{baseUrl}}/">
 </head>
 
 <body>
     <div id="vditor"></div>
+
+    <div id="instant-preview" data-cache-id="{{documentCacheId}}" aria-hidden="true" hidden>
+        <div class="vditor-toolbar"></div>
+        <div class="vditor-content">
+            <div class="instant-preview__outline"></div>
+            <div class="instant-preview__editor">
+                <pre class="vditor-reset"><span class="vditor-editor-boundary"></span><!--instant-preview--></pre>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Paints the document with the editor's last theme and geometry, while the editor loads underneath.
+        (() => {
+            const preview = document.getElementById('instant-preview');
+            let shell;
+            try { shell = JSON.parse(localStorage.getItem('office-preview-shell')); } catch { }
+            // Nothing to match yet, or the document reopens further down: better blank than a jump.
+            if (!shell || Number(localStorage.getItem(preview.dataset.cacheId + '-scroll')) > 0) {
+                preview.remove();
+                return;
+            }
+            document.documentElement.dataset.editorTheme = preview.dataset.editorTheme = shell.theme;
+            preview.dataset.pageWidthMode = shell.pageWidthMode;
+            preview.className = shell.className;
+            if (shell.theme === 'Auto') {
+                preview.classList.toggle('vditor--dark', document.body.matches('.vscode-dark, .vscode-high-contrast:not(.vscode-high-contrast-light)'));
+            }
+            preview.style.cssText = shell.style;
+            preview.querySelector('.vditor-toolbar').style.height = shell.top + 'px';
+            preview.querySelector('.instant-preview__outline').style.width = shell.left + 'px';
+            preview.querySelector('.instant-preview__editor').classList.add('vditor-' + shell.mode);
+            preview.querySelector('.vditor-reset').style.padding = shell.padding;
+            preview.hidden = false;
+        })();
+    </script>
 
     <!-- Context Menu -->
     <div class="vditor-context-menu" id="context-menu" role="menu" hidden>
@@ -100,10 +137,32 @@
     </div>
 
 </body>
-<script src="dist/index.min.js"></script>
-<!-- Fetched with the editor instead of after it. Vditor skips its own load when this id exists. -->
-<script id="vditorLuteScript" src="dist/js/lute/lute.min.js"></script>
-<script src="../lib/vscode.js"></script>
-<script src="index.js" type="module"></script>
+<template id="editor-scripts">
+    <script src="dist/index.min.js"></script>
+    <!-- Fetched with the editor instead of after it. Vditor skips its own load when this id exists. -->
+    <script id="vditorLuteScript" src="dist/js/lute/lute.min.js"></script>
+    <script src="../lib/vscode.js"></script>
+    <script src="index.js" type="module"></script>
+</template>
+<script>
+    // Running the editor scripts blocks painting for ~100 ms: let the preview reach the screen first.
+    (() => {
+        let started = false;
+        const start = () => {
+            if (started) return;
+            started = true;
+            for (const source of document.getElementById('editor-scripts').content.querySelectorAll('script')) {
+                const script = document.createElement('script');
+                for (const { name, value } of source.attributes) script.setAttribute(name, value);
+                script.async = false; // keeps the execution order
+                document.body.appendChild(script);
+            }
+        };
+        if (!document.getElementById('instant-preview')) return start();
+        // VS Code keeps the page invisible until it has loaded.
+        addEventListener('load', () => requestAnimationFrame(() => setTimeout(start)));
+        setTimeout(start, 300); // no animation frame in a hidden tab
+    })();
+</script>
 
 </html>

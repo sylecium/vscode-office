@@ -2,6 +2,7 @@ import { getToolbar, bindShortcut, createContextMenu, setAIAvailable, } from "./
 import { observeWorkspaceAbsoluteImages, createMarkdownValueReader, restoreWorkspaceBaseUrls, } from "./imagePath.js";
 import { mapVscodeLanguageToVditorLang } from "./lang.js";
 import { bindLinkErrors } from "./linkError.js";
+import { dismissInstantPreview, savePreviewShell } from "./instantPreview.js";
 
 handler.on("open", async (md) => {
   const { content, rootPath, workspaceBaseUrl, documentCacheId, pendingFragment, shouldRestoreFocus, config, fileName } = md;
@@ -116,6 +117,9 @@ handler.on("open", async (md) => {
       },
     },
     after() {
+      dismissInstantPreview(editor);
+      // Theme, font and layout changes made since the document opened.
+      window.addEventListener('blur', () => savePreviewShell(editor));
       bindLinkErrors(handler, editor);
       // Large documents are only serialized once typing pauses: send pending edits before
       // the tab loses focus or a keyboard command (close, switch editor) can discard them.

@@ -17,6 +17,42 @@ html {
     scrollbar-color: unset;
 }
 
+#instant-preview:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    border: 0;
+    background-color: var(--textarea-background-color, var(--bg-color, var(--vscode-editor-background)));
+}
+
+.instant-preview__outline {
+    flex-shrink: 0;
+    background-color: var(--outline-bg-color, var(--panel-background-color));
+}
+
+/* The editor keeps source whitespace; the preview is rendered HTML. */
+#instant-preview pre.vditor-reset {
+    white-space: normal;
+}
+
+/* Same footprint as the editor's CodeMirror block (header and lines), so what follows doesn't move. */
+#instant-preview pre.vditor-reset pre {
+    margin: 16px 0;
+    padding: 50px 16px 10px;
+    overflow: hidden;
+    border-radius: 6px;
+    background-color: rgba(127, 127, 127, 0.15);
+    line-height: 17.55px;
+}
+
+#instant-preview pre.vditor-reset pre > code {
+    padding: 0;
+    background: none;
+    font-size: 13px;
+    line-height: inherit;
+    white-space: pre;
+}
+
 .vditor-context-menu {
     position: fixed;
     z-index: 10000;
