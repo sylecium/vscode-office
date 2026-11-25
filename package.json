@@ -970,6 +970,7 @@
 		"@typescript-eslint/eslint-plugin": "^8.62.1",
 		"@typescript-eslint/parser": "^8.62.1",
 		"@vitejs/plugin-react": "^6.0.2",
+		"@vscode/vsce": "^4.1.1",
 		"chokidar": "^5.0.0",
 		"esbuild": "^0.28.1",
 		"esbuild-plugin-copy": "2.1.1",
