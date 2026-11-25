@@ -3,6 +3,7 @@ const os = require("os")
 const path = require("path")
 const { pathToFileURL } = require("url")
 const { createOutline } = require("./outline")
+const { prepareDocxHtml, setA4PageSize } = require("./docxHtml")
 const isDev = process.argv.indexOf('--type=extensionHost') >= 0;
 
 export async function exportHtml(exportFilePath, data) {
@@ -21,8 +22,9 @@ export async function exportDocx(exportFilePath, data, config) {
     if (font) docxOptions.font = font;
     // html-to-docx expects half-points: px * 0.75 (pt) * 2.
     if (typeof style.fontSize === 'number') docxOptions.fontSize = Math.round(style.fontSize * 1.5);
-    const exportTask = await htmlToDocx(html, '', docxOptions, '');
-    const buffer = Buffer.from(await exportTask.arrayBuffer());
+    const exportTask = await htmlToDocx(prepareDocxHtml(html), '', docxOptions, '');
+    let buffer = Buffer.from(await exportTask.arrayBuffer());
+    if (config?.format === 'A4') buffer = await setA4PageSize(buffer);
     fs.writeFileSync(exportFilePath, buffer)
 }
 
@@ -37,8 +39,7 @@ export async function exportByType(filePath, data, type, config) {
 
     // export html
     if (type == "html") {
-        exportHtml(targetFilePath, data)
-        return
+        return exportHtml(targetFilePath, data)
     } else if (type == "docx") {
         return exportDocx(targetFilePath, data, config)
     }
@@ -59,55 +60,54 @@ export async function exportByType(filePath, data, type, config) {
     }
 
     const puppeteer = require("puppeteer-core")
-    const browser = await puppeteer.launch(launchOptions).catch(error => {
-        showErrorMessage("puppeteer.launch()", error)
-        throw error
-    })
-    const page = await browser.newPage().catch(error => {
-        showErrorMessage("browser.newPage()", error)
-        throw error
-    });
-    await page.goto(fileUrl, { waitUntil: "load", timeout: 60000 }).catch(async error => {
-        showErrorMessage("page.goto()", error)
-        await page.setContent(data, { waitUntil: "load", timeout: 60000 })
-    });
-
-    // generate pdf
-    if (type == "pdf") {
-        // https://pptr.dev/api/puppeteer.pdfoptions
-        const margin = config["margin"] || {};
-        const pdfOptions = {
-            format: config["format"] || "A4",
-            printBackground: config["printBackground"] || true,
-            margin: {
-                top: margin.top != null ? `${margin.top}px` : undefined,
-                right: margin.right != null ? `${margin.right}px` : undefined,
-                bottom: margin.bottom != null ? `${margin.bottom}px` : undefined,
-                left: margin.left != null ? `${margin.left}px` : undefined
-            }
-        }
-        const pdf = await page.pdf(pdfOptions).catch(error => {
-            showErrorMessage("page.pdf", error)
+    let browser
+    try {
+        browser = await puppeteer.launch(launchOptions).catch(error => {
+            showErrorMessage("puppeteer.launch()", error)
             throw error
         })
+        const page = await browser.newPage().catch(error => {
+            showErrorMessage("browser.newPage()", error)
+            throw error
+        });
+        await page.goto(fileUrl, { waitUntil: "load", timeout: 60000 }).catch(async error => {
+            showErrorMessage("page.goto()", error)
+            await page.setContent(data, { waitUntil: "load", timeout: 60000 })
+        });
 
-        let pdfBytes
-        try {
-            pdfBytes = await createOutline(pdf, data)
-        } catch (error) {
-            showErrorMessage("createOutline()", error)
-            pdfBytes = Buffer.from(pdf)
+        // generate pdf
+        if (type == "pdf") {
+            // https://pptr.dev/api/puppeteer.pdfoptions
+            const margin = config["margin"] || {};
+            const pdfOptions = {
+                format: config["format"] || "A4",
+                printBackground: config["printBackground"] || true,
+                margin: {
+                    top: margin.top != null ? `${margin.top}px` : undefined,
+                    right: margin.right != null ? `${margin.right}px` : undefined,
+                    bottom: margin.bottom != null ? `${margin.bottom}px` : undefined,
+                    left: margin.left != null ? `${margin.left}px` : undefined
+                }
+            }
+            const pdf = await page.pdf(pdfOptions).catch(error => {
+                showErrorMessage("page.pdf", error)
+                throw error
+            })
+
+            let pdfBytes
+            try {
+                pdfBytes = await createOutline(pdf, data)
+            } catch (error) {
+                showErrorMessage("createOutline()", error)
+                pdfBytes = Buffer.from(pdf)
+            }
+            fs.writeFileSync(targetFilePath, pdfBytes)
+
         }
-        fs.writeFileSync(targetFilePath, pdfBytes)
-
-    }
-
-    await browser.close()
-
-    // delete temporary file
-    let debug = config["debug"] || false
-    if (!debug) {
-        if (isExistsPath(tmpfilename)) {
+    } finally {
+        await browser?.close()
+        // delete temporary file
+        if (!config["debug"] && isExistsPath(tmpfilename)) {
             fs.unlink(tmpfilename, () => { })
         }
     }
