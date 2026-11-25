@@ -34,6 +34,11 @@ test('typing after a pause is recorded once the burst ends, not between its firs
     assert.equal(wait(editor), 0);
 });
 
+test('undo and redo are sent at once, except in large documents', () => {
+    assert.equal(getHistoryRecordWait(Date.now(), 600, 1, false), 0);
+    assert.equal(getHistoryRecordWait(Date.now(), 600, -1, false), 600);
+});
+
 test('a pending document load does not age the first edit', t => {
     t.mock.timers.enable({ apis: ['Date'], now: 1000 });
     const editor = {};

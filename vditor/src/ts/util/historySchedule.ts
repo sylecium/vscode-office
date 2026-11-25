@@ -77,11 +77,13 @@ export const getHistoryRecordWait = (
     burstStartedAt: number,
     undoDelay: number,
     maxWaitFactor: number = DEFAULT_HISTORY_MAX_WAIT_FACTOR,
+    createsUndoStep = true,
 ): number => {
     if (isUnlimitedHistoryDefer(maxWaitFactor)) {
         return undoDelay;
     }
-    if (maxWaitFactor <= 0) {
+    // Undo, redo and edits already in the undo stack have no step to group: tell the host at once.
+    if (!createsUndoStep || maxWaitFactor <= 0) {
         return 0;
     }
     if (!burstStartedAt) {

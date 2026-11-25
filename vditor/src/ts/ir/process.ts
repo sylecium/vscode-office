@@ -78,6 +78,7 @@ export const processAfterRender = (vditor: IVditor, options = {
         getHistoryBurstStart(vditor),
         vditor.options.undoDelay,
         getHistoryMaxWaitFactor(vditor),
+        options.enableAddUndoStack,
     );
     vditor.ir.processTimeoutId = window.setTimeout(() => {
         scheduleIdleHistory(vditor.ir, () => recordHistory(vditor, options));

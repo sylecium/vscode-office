@@ -38,6 +38,7 @@ export const afterRenderEvent = (vditor: IVditor, options = {
         getHistoryBurstStart(vditor),
         vditor.options.undoDelay,
         getHistoryMaxWaitFactor(vditor),
+        options.enableAddUndoStack,
     );
     vditor.wysiwyg.afterRenderTimeoutId = window.setTimeout(() => {
         scheduleIdleHistory(vditor.wysiwyg, () => recordHistory(vditor, options));
