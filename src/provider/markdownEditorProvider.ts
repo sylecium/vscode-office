@@ -354,7 +354,10 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         const baseUrl = webview.asWebviewUri(basePath).toString().replace(/\?.+$/, '').replace('https://git', 'https://file');
         const indexHtml = await readExtensionText(this.context, 'resource', 'markdown', 'index.html');
         // Filled in after buildPath, which would rewrite the document's own relative links.
-        webview.html = Util.buildPath(indexHtml.replace("{{baseUrl}}", baseUrl), webview, contextUri)
+        const page = indexHtml.replace("{{baseUrl}}", baseUrl)
+            .replaceAll('{{cspSource}}', webview.cspSource)
+            .replaceAll('{{nonce}}', crypto.randomUUID());
+        webview.html = Util.buildPath(page, webview, contextUri)
             .replace('{{documentCacheId}}', () => escapePreviewAttribute(`${uri.scheme}:${uri.toString()}`))
             .replace('<!--instant-preview-->', () => renderInstantPreview(content));
     }
