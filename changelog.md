@@ -1,5 +1,12 @@
 # Change log
 
+# 4.3.2 2026-11-25
+
+Markdown Editor:
+
+- Show the document almost at once: a read-only preview appears while the editor loads, with the theme and layout of the last opening. It is skipped the very first time and for documents that reopen scrolled down.
+- Raw HTML embedded in a document is left out of the preview and appears with the editor.
+
 # 4.3.1 2026-11-25
 
 Markdown Editor:
