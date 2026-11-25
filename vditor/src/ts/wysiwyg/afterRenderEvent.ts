@@ -55,7 +55,9 @@ export function recordHistory(vditor: IVditor, options = { enableAddUndoStack: t
     const totalStart = debug ? performance.now() : 0;
 
     let stepStart = debug ? performance.now() : 0;
-    const text = getMarkdown(vditor);
+    // Full-document serialization: skipped when nothing reads it, e.g. when a document opens.
+    const needsText = options.enableInput || vditor.options.counter.enable || vditor.options.cache.enable;
+    const text = needsText ? getMarkdown(vditor) : "";
     const getMarkdownMs = debug ? performance.now() - stepStart : 0;
 
     stepStart = debug ? performance.now() : 0;

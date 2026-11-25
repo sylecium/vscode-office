@@ -32,7 +32,9 @@ export const recordHistory = (vditor: IVditor, options = {
     }
     cancelIdleHistory(vditor.ir);
     setHistoryPending(vditor);
-    const text = getMarkdown(vditor);
+    // Full-document serialization: skipped when nothing reads it, e.g. when a document opens.
+    const needsText = options.enableInput || vditor.options.counter.enable || vditor.options.cache.enable;
+    const text = needsText ? getMarkdown(vditor) : "";
     if (options.enableInput) {
         fireContentInput(vditor, text);
     }
