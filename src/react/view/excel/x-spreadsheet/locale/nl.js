@@ -86,6 +86,8 @@ export default {
     readonlyBanner: 'Alleen-lezen — bladeren en zoeken; gebruik Opslaan als om wijzigingen op te slaan',
     formatCannotPreserveTitle: 'Opmaak kan niet behouden blijven',
     formatCannotPreserveContent: '{} kan stijlen, samenvoegingen, formules enz. niet behouden. Opslaan als xlsx?',
+    legacyFormatContent: '{}-bestanden behouden hier alleen celwaarden: formules kunnen verloren gaan en stijlen, grafieken en afbeeldingen worden verwijderd. Opslaan als xlsx?',
+    csvSavedAsUtf8: 'Sommige tekens bestaan niet in de oorspronkelijke codering: het bestand is als UTF-8 opgeslagen.',
     saveAsXlsx: 'Opslaan als xlsx',
     saveAsOriginal: 'Opslaan in origineel formaat',
     chooseExportFormat: 'Exportformaat kiezen',

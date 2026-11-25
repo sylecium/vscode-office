@@ -11,6 +11,7 @@ import { Holder } from './markdown/holder';
 import { convertMd } from "./markdown/markdown-pdf";
 import type { ExportStyle } from "./markdown/exportTheme";
 import { Global, i18n } from "@/common/global";
+import { toggleEditor } from "@/common/reopenEditor";
 
 export type ExportType = 'pdf' | 'html' | 'docx';
 
@@ -29,14 +30,6 @@ interface ExportOption {
 
 const MM_TO_PX = 96 / 25.4;
 const PDF_FORMATS = new Set(['A3', 'A4', 'A5', 'Letter', 'Legal']);
-
-/** Editor showing this file in the tab, or undefined for another file or kind of tab. */
-function editorTypeOf(tab: vscode.Tab | undefined, uri: vscode.Uri): string | undefined {
-    const input = tab?.input;
-    if (input instanceof vscode.TabInputText && input.uri.toString() === uri.toString()) return 'default';
-    if (input instanceof vscode.TabInputCustom && input.uri.toString() === uri.toString()) return input.viewType;
-    return undefined;
-}
 
 export class MarkdownService {
 
@@ -283,32 +276,7 @@ export class MarkdownService {
     }
 
     public switchEditor(uri: vscode.Uri) {
-        const editor = vscode.window.activeTextEditor;
-        if (!uri) uri = editor?.document.uri;
-        // activeTextEditor may still point to a split text editor while a custom editor is active.
-        const isCustom = vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputCustom;
-        const type = editor && !isCustom ? 'cweijan.markdownViewer' : 'default';
-        return this.reopenInPlace(uri, type);
-    }
-
-    /** vscode.openWith adds a second tab for another editor type, so close the previous one. */
-    public async reopenInPlace(uri: vscode.Uri, viewType: string) {
-        const group = vscode.window.tabGroups.activeTabGroup;
-        const viewColumn = group.viewColumn;
-        const previousType = editorTypeOf(group.activeTab, uri);
-        const isSwitch = previousType !== undefined && previousType !== viewType;
-        if (isSwitch) {
-            // Closing a dirty tab prompts the user, and "Don't Save" would discard the edits.
-            const document = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
-            if (document?.isDirty && !await document.save()) return;
-        }
-        await vscode.commands.executeCommand('vscode.openWith', uri, viewType, viewColumn);
-        if (!isSwitch) return;
-        // Look the tab up again: VS Code can rebuild every Tab object while opening, which makes old references invalid.
-        const previous = vscode.window.tabGroups.all.find(g => g.viewColumn === viewColumn)
-            ?.tabs.find(tab => editorTypeOf(tab, uri) === previousType);
-        // Nothing to close when openWith already replaced it (preview tab).
-        if (previous) await vscode.window.tabGroups.close(previous);
+        return toggleEditor(uri, 'cweijan.markdownViewer');
     }
 
 }

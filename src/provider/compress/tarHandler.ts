@@ -52,7 +52,7 @@ export async function handleTarGz(uri: Uri, handler: Handler, gzip = true) {
             }
         }).on('autoExtract', async () => {
             window.showInformationMessage(i18n('ext.compress.startExtract'));
-            const plan = planExtractTarget(uri.fsPath, files.length);
+            const plan = planExtractTarget(uri.fsPath, filePaths);
             if (plan.createSubfolder) {
                 mkdirSync(plan.targetDir, { recursive: true });
             }

@@ -19,6 +19,7 @@ import {
 import { parseSpreadsheetLink } from '../excel_hyperlink';
 import { expr2xy } from './core/alphabet';
 import { getFontSizePxByPt } from './core/font';
+import type { CellSource } from '../excel_source';
 
 export interface ExtendToolbarOption {
     tip?: string;
@@ -91,6 +92,8 @@ export interface CellData {
     /** Imported numeric format and its corresponding viewer format. */
     numFmt?: string;
     numFmtFormat?: string;
+    /** Original value of cells whose type cannot be rebuilt from the grid text. */
+    source?: CellSource;
     style?: number;
     merge?: CellMerge;
     /** false 表示不可编辑（对应 Excel 锁定单元格） */

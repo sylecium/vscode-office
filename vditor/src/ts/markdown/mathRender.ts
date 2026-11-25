@@ -19,7 +19,7 @@ declare const katex: {
         maxExpand?: number | undefined;
         strict?: boolean | string | undefined;
         globalGroup?: boolean | undefined;
-        trust?: boolean | ((context: { command: string }) => boolean) | undefined;
+        trust?: boolean | ((context: { command: string; url?: string; protocol?: string }) => boolean) | undefined;
     }): string;
 };
 
@@ -62,7 +62,7 @@ export const mathRender = (element: HTMLElement, options?: { cdn?: string, math?
                         throwOnError: false,
                         output: "html",
                         macros: options.math.macros,
-                        trust: true,
+                        trust: (context) => ["http", "https", "mailto"].includes(context.protocol ?? ""),
                     });
                 } catch (e) {
                     mathElement.innerHTML = e.message;

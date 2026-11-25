@@ -1,24 +1,16 @@
 import { Handler } from "@/common/handler";
-import { exec } from "child_process";
-import { existsSync, rm } from "fs";
-import { platform, tmpdir } from "os";
-import { resolve } from "path";
+import { randomUUID } from "crypto";
+import { rm } from "fs";
+import { tmpdir } from "os";
 import { Uri, commands } from "vscode";
 
 export function handlerCommonDecompress(uri: Uri, handler: Handler) {
-    const decompressPath = `${tmpdir()}/officeViewer-decompress-${new Date().getTime()}`;
+    const decompressPath = `${tmpdir()}/officeViewer-decompress-${randomUUID()}`;
     handler
         .on('showInExplorer', () => {
-            const path = uri.fsPath;
-            if (platform() == 'win32') {
-                exec(`explorer /select, "${resolve(path)}"`);
-            } else if (platform() == 'darwin') {
-                exec(`open -R "${resolve(path)}"`);
-            } else {
-                commands.executeCommand('vscode.open', Uri.file(uri.fsPath));
-            }
+            commands.executeCommand('revealFileInOS', uri);
         }).on('dispose', () => {
-            if (existsSync(decompressPath)) rm(decompressPath, { recursive: true, force: true }, null);
+            rm(decompressPath, { recursive: true, force: true }, () => { });
         });
 
     return decompressPath;

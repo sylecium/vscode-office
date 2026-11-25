@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { basename, join, parse } from 'path';
 import { Handler } from "@/common/handler";
+import { i18n } from '@/common/global';
+import { reopenInPlace, unsavedViewers } from '@/common/reopenEditor';
 import { isUriReadOnly } from '@/common/fileReadOnly';
+import { openWebLink } from '@/common/openWebLink';
 import { Uri, workspace } from 'vscode';
 import { emitFileOfficeOpen, emitVirtualOfficeOpen, isVirtualUri } from '@/provider/handlers/officeContent';
 
@@ -23,6 +26,11 @@ export function shouldSkipFileChange(uri: Uri): boolean {
 }
 
 function setDirty(handler: Handler, uri: Uri, dirty: boolean) {
+    if (dirty) {
+        unsavedViewers.add(uri.toString());
+    } else {
+        unsavedViewers.delete(uri.toString());
+    }
     const panel = handler.panel;
     const fileName = basename(uri.fsPath);
     panel.title = dirty ? `${fileName}*` : fileName;
@@ -33,6 +41,21 @@ function setDirty(handler: Handler, uri: Uri, dirty: boolean) {
 
 export function handleCommonEvent(uri: Uri, handler: Handler, options?: { skipOpen?: boolean }) {
     let readOnly = false;
+    let askingToReload = false;
+    const reload = async () => {
+        if (shouldSkipFileChange(uri) || askingToReload) {
+            return;
+        }
+        if (unsavedViewers.has(uri.toString())) {
+            askingToReload = true;
+            const action = i18n('ext.viewer.reload');
+            const choice = await vscode.window.showWarningMessage(i18n('ext.viewer.changedOnDisk', basename(uri.fsPath)), action);
+            askingToReload = false;
+            if (choice !== action) return;
+            setDirty(handler, uri, false);
+        }
+        await send();
+    };
     const send = async () => {
         if (shouldSkipFileChange(uri)) {
             return;
@@ -45,12 +68,18 @@ export function handleCommonEvent(uri: Uri, handler: Handler, options?: { skipOp
         await emitFileOfficeOpen(handler, uri, handler.panel.webview);
     }
     const events = handler
-        .on("editInVSCode", (full: boolean) => {
-            const side = full ? vscode.ViewColumn.Active : vscode.ViewColumn.Beside;
-            vscode.commands.executeCommand('vscode.openWith', uri, "default", side);
+        .on("editInVSCode", async (full: boolean) => {
+            if (full) {
+                await reopenInPlace(uri, 'default');
+            } else {
+                await vscode.commands.executeCommand('vscode.openWith', uri, 'default', vscode.ViewColumn.Beside);
+            }
         })
     if (!options?.skipOpen) {
-        events.on("init", () => { void send(); }).on("fileChange", () => { void send(); })
+        events.on("init", () => {
+            setDirty(handler, uri, false);
+            void send();
+        }).on("fileChange", () => { void reload(); })
     }
     events
         .on("change", () => {
@@ -108,11 +137,10 @@ export function handleCommonEvent(uri: Uri, handler: Handler, options?: { skipOp
             );
         })
         .on('openExternal', (url: string) => {
-            if (url) {
-                vscode.env.openExternal(vscode.Uri.parse(url));
-            }
+            openWebLink(url);
         })
         .on('dispose', () => {
             delete fileSaveTimes[uri.toString()];
+            unsavedViewers.delete(uri.toString());
         })
 }

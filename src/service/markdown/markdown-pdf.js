@@ -1,4 +1,5 @@
 const fs = require("fs")
+const { randomBytes } = require("crypto")
 const path = require("path")
 const url = require("url")
 const URI = require("vscode").Uri
@@ -22,8 +23,12 @@ async function convertMarkdown(inputMarkdownFile, config) {
   const type = config.type
   const uri = URI.file(inputMarkdownFile)
   const text = fs.readFileSync(inputMarkdownFile).toString()
+  // The document is untrusted: only scripts carrying the nonce run, and a <meta> redirect
+  // (which no policy blocks) could print a local file.
   const content = convertMarkdownToHtml(inputMarkdownFile, type, text, config)
-  const html = mergeHtml(content, uri, type, config)
+    .replace(/<meta(?=[\s/>])/gi, '&lt;meta')
+  const nonce = randomBytes(16).toString('base64')
+  const html = mergeHtml(content, uri, type, config, buildExportCsp(nonce))
 
   // insert mermaid script
   let outputHtml = html
@@ -31,13 +36,27 @@ async function convertMarkdown(inputMarkdownFile, config) {
   const containsMermaid = root.querySelector('.mermaid') != null;
   if (containsMermaid) {
     const mermaidScript = `
-    <script src="${getMermaidScriptSrc(type)}"></script>
-    <script>mermaid.initialize({startOnLoad:true});</script>
+    <script nonce="${nonce}" src="${getMermaidScriptSrc(type)}"></script>
+    <script nonce="${nonce}">mermaid.initialize({startOnLoad:true});</script>
     `;
     outputHtml = appendHtmlToBody(outputHtml, mermaidScript);
   }
 
   await exportByType(inputMarkdownFile, outputHtml, type, config)
+}
+
+// No frames or plugins either: they would display local files.
+function buildExportCsp(nonce) {
+  return [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    "style-src 'unsafe-inline' file: https:",
+    "img-src * data: blob: file:",
+    "media-src * data: blob: file:",
+    "font-src data: file: https:",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ')
 }
 
 function getMermaidScriptSrc(type) {
@@ -161,14 +180,14 @@ function convertMarkdownToHtml(filename, type, text, config) {
 /*
  * make html
  */
-function mergeHtml(content, uri, type, config = {}) {
+function mergeHtml(content, uri, type, config, csp) {
   try {
     const mustache = require("mustache")
     const title = path.basename(uri.fsPath)
     // Theme/font overrides from the export dialog come last so they win over the base styles.
     const style = readStyles(type) + buildExportCss(config.style)
     const templatePath = path.join(__dirname, "template", "template.html")
-    let html = mustache.render(readFile(templatePath), { title, style, content })
+    let html = mustache.render(readFile(templatePath), { csp, title, style, content })
     const frame = config.printFrame
     if (frame) {
       const n = (v) => Math.max(0, Math.round(Number(v) || 0))

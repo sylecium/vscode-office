@@ -40,6 +40,8 @@ export async function printDocxToPdf(context: vscode.ExtensionContext, uri: vsco
             { location: vscode.ProgressLocation.Notification, title: 'Creating PDF...' },
             async () => {
                 const { executablePath, puppeteerArgs } = new MarkdownService(context).getConfig({});
+                // The package ships puppeteer-core as a single file, which only require() resolves.
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const puppeteer = require('puppeteer-core');
                 const browser = await puppeteer.launch({ headless: true, executablePath, args: puppeteerArgs });
                 try {

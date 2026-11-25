@@ -15,6 +15,7 @@ import {
     readWorksheetProtection,
 } from './excel_protection';
 import type { CellData, SheetData } from './x-spreadsheet/index';
+import { dateToText, isNumberText, serialToDate, type CellSource } from './excel_source';
 
 type RowMap = NonNullable<SheetData['rows']>;
 
@@ -127,11 +128,23 @@ const formatCellText = (cell: ExcelJS.Cell) => {
         if (formula) return `=${formula}`;
     }
     if (cell.value == null) return '';
+    // ExcelJS `text` is Date.toString() for dates, so they come first.
+    if (cell.value instanceof Date) return dateToText(cell.value);
+    if (typeof cell.value === 'object' && 'error' in cell.value) return String(cell.value.error);
     if (cell.text) return cell.text;
-    if (cell.value instanceof Date) {
-        return cell.value.toISOString().slice(0, 10);
-    }
     return String(cell.value);
+};
+
+/** Values that retyping the grid text would turn into another type. */
+const readCellSource = (cell: ExcelJS.Cell, text: string): CellSource | undefined => {
+    const value = cell.value;
+    if (value == null || cell.formula) return undefined;
+    if (value instanceof Date) return text ? { text, value: value.getTime(), date: true } : undefined;
+    if (typeof value === 'boolean') return { text, value };
+    if (typeof value === 'string') {
+        return isNumberText(value) || value.startsWith('=') ? { text, value } : undefined;
+    }
+    return typeof value === 'object' && ('richText' in value || 'error' in value) ? { text, value } : undefined;
 };
 
 const readFreezeFromWorksheet = (worksheet: ExcelJS.Worksheet): string | undefined => {
@@ -217,6 +230,8 @@ const convertExcelJsWorksheet = (worksheet: ExcelJS.Worksheet, workbook: ExcelJS
 
             const styleIndex = styleRegistry.add(cellStyle);
             const cellData: CellData = { text };
+            const source = readCellSource(cell, text);
+            if (source) cellData.source = source;
             if (cell.numFmt) {
                 cellData.numFmt = cell.numFmt;
                 cellData.numFmtFormat = cellStyle?.format;
@@ -336,14 +351,38 @@ const buildColsFromSheetJsWorksheet = (worksheet: XLSX.WorkSheet, colCount: numb
     return cols;
 };
 
-const formatSheetJsCell = (cell: XLSX.CellObject) => {
-    if (cell.w) return cell.w;
-    if (cell.v == null) return '';
-    if (cell.v instanceof Date) return cell.v.toISOString().slice(0, 10);
-    return String(cell.v);
+/** Keeps the stored value as grid text; the number format only drives the display. */
+const convertSheetJsCell = (cell: XLSX.CellObject, date1904: boolean): CellData | undefined => {
+    const numFmt = typeof cell.z === 'string' && cell.z !== 'General' ? cell.z : undefined;
+    const format = numFmt ? { numFmt, numFmtFormat: 'normal' } : {};
+    if (cell.f) {
+        const text = `=${cell.f}`;
+        return { text, ...format, source: { text, value: cell.v, type: cell.t as CellSource['type'], formula: cell.f } };
+    }
+    if (cell.v == null) return undefined;
+    if (cell.t === 'n') {
+        const serial = cell.v as number;
+        if (numFmt && XLSX.SSF.is_date(numFmt)) {
+            // Times without a day keep their formatted text.
+            const text = serial < 1 && cell.w ? cell.w : dateToText(serialToDate(serial + (date1904 ? 1462 : 0)));
+            return { text, ...format, source: { text, value: serial + (date1904 ? 1462 : 0), type: 'n', date: true } };
+        }
+        return { text: String(serial), ...format };
+    }
+    if (cell.t === 'b') {
+        const text = cell.v ? 'TRUE' : 'FALSE';
+        return { text, source: { text, value: cell.v, type: 'b' } };
+    }
+    if (cell.t === 'e') {
+        const text = cell.w ?? '#VALUE!';
+        return { text, source: { text, value: cell.v, type: 'e' } };
+    }
+    const text = String(cell.v);
+    if (!text) return undefined;
+    return isNumberText(text) || text.startsWith('=') ? { text, source: { text, value: text, type: 's' } } : { text };
 };
 
-const convertSheetJsWorksheet = (worksheet: XLSX.WorkSheet): Pick<SheetData, 'rows' | 'cols' | 'merges'> => {
+const convertSheetJsWorksheet = (worksheet: XLSX.WorkSheet, date1904: boolean): Pick<SheetData, 'rows' | 'cols' | 'merges'> => {
     const rows: RowMap = {};
     let maxCols = 0;
     let maxRow = 0;
@@ -360,9 +399,9 @@ const convertSheetJsWorksheet = (worksheet: XLSX.WorkSheet): Pick<SheetData, 'ro
             const addr = XLSX.utils.encode_cell({ r: ri, c: ci });
             const cell = worksheet[addr];
             if (!cell) continue;
-            const text = formatSheetJsCell(cell);
-            if (!text) continue;
-            cells[ci] = { text };
+            const cellData = convertSheetJsCell(cell, date1904);
+            if (!cellData) continue;
+            cells[ci] = cellData;
             hasContent = true;
             if (ci + 1 > maxCols) maxCols = ci + 1;
             if (ri + 1 > maxRow) maxRow = ri + 1;
@@ -392,7 +431,7 @@ const convertSheetJsWorkbook = (workbook: XLSX.WorkBook): ExcelData => {
     let maxCols = 26;
 
     for (const sheetName of workbook.SheetNames) {
-        const converted = convertSheetJsWorksheet(workbook.Sheets[sheetName]);
+        const converted = convertSheetJsWorksheet(workbook.Sheets[sheetName], Boolean(workbook.Workbook?.WBProps?.date1904));
         const rowCount = converted.rows?.len ?? 0;
         if (maxLength < rowCount) maxLength = rowCount;
 
@@ -411,7 +450,8 @@ const convertSheetJsWorkbook = (workbook: XLSX.WorkBook): ExcelData => {
 };
 
 const loadWithSheetJs = (buffer: ArrayBuffer): ExcelData => {
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    // Dates stay serial numbers: the SheetJS Date conversion depends on the local time zone.
+    const workbook = XLSX.read(buffer, { type: 'array', cellNF: true });
     return convertSheetJsWorkbook(workbook);
 };
 

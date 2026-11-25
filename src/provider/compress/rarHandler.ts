@@ -70,7 +70,7 @@ export async function handleRar(uri: Uri, handler: Handler) {
             if (encrypted && !archivePassword) return;
 
             window.showInformationMessage(i18n('ext.compress.startExtract'));
-            const plan = planExtractTarget(uri.fsPath, files.length);
+            const plan = planExtractTarget(uri.fsPath, filePaths);
             if (plan.createSubfolder) {
                 mkdirSync(plan.targetDir, { recursive: true });
             }

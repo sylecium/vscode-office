@@ -144,6 +144,8 @@ export default {
     readonlyBanner: 'Read-only — browse and find; use Save As to save changes',
     formatCannotPreserveTitle: 'Formatting cannot be preserved',
     formatCannotPreserveContent: '{} cannot preserve styles, merges, formulas, etc. Save as xlsx instead?',
+    legacyFormatContent: '{} files keep cell values only here: formulas may be lost or stale, and styles, charts and images are removed. Save as xlsx instead?',
+    csvSavedAsUtf8: 'Some characters do not exist in the original encoding: the file was saved as UTF-8.',
     saveAsXlsx: 'Save as xlsx',
     saveAsOriginal: 'Save as original',
     chooseExportFormat: 'Choose export format',

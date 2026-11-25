@@ -1,3 +1,4 @@
+import { lstatSync } from 'fs';
 import { basename, isAbsolute, join, parse, relative, resolve, sep } from 'path';
 import { commands, Uri } from 'vscode';
 
@@ -72,13 +73,35 @@ export interface ExtractPlan {
     createSubfolder: boolean;
 }
 
-export function planExtractTarget(archivePath: string, rootItemCount: number): ExtractPlan {
+/** Also true for a broken symbolic link, which writing would follow. */
+function pathExists(path: string): boolean {
+    try {
+        lstatSync(path);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Extraction never overwrites: a single top-level item goes next to the archive when its name is
+ * free, anything else goes into a new folder named after the archive.
+ */
+export function planExtractTarget(archivePath: string, entryPaths: string[]): ExtractPlan {
     const parentDir = resolve(archivePath, '..');
-    const createSubfolder = rootItemCount > 1;
-    return {
-        targetDir: createSubfolder ? join(parentDir, getArchiveBaseName(archivePath)) : parentDir,
-        createSubfolder,
-    };
+    const roots = new Set(entryPaths
+        .map((path) => path.replace(/\\/g, '/').split('/').find((segment) => segment && segment !== '.'))
+        .filter(Boolean));
+    const [onlyRoot] = roots;
+    if (roots.size === 1 && !pathExists(join(parentDir, onlyRoot))) {
+        return { targetDir: parentDir, createSubfolder: false };
+    }
+    const baseName = getArchiveBaseName(archivePath);
+    let targetDir = join(parentDir, baseName);
+    for (let index = 2; pathExists(targetDir); index += 1) {
+        targetDir = join(parentDir, `${baseName} (${index})`);
+    }
+    return { targetDir, createSubfolder: true };
 }
 
 export function getRevealPathAfterExtract(plan: ExtractPlan, extractedPaths: string[]): string {

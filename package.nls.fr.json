@@ -1,6 +1,8 @@
 {
 	"ext.common.yes": "OUI",
 	"ext.common.no": "NON",
+	"ext.viewer.changedOnDisk": "$1 a été modifié sur le disque. Le recharger annulera vos modifications non enregistrées.",
+	"ext.viewer.reload": "Recharger",
 	"ext.compress.startExtract": "Extraction en cours...",
 	"ext.compress.extractSuccess": "Extraction réussie !",
 	"ext.compress.wrongPassword": "Mot de passe incorrect",

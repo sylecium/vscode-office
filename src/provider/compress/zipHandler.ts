@@ -100,11 +100,11 @@ export async function handleZip(uri: Uri, handler: Handler) {
 
             handler.emit('extractToast', { type: 'loading', message: i18n('ext.compress.startExtract') });
             try {
-                const plan = planExtractTarget(uri.fsPath, files.length);
+                const filePaths = Object.keys(fileMap);
+                const plan = planExtractTarget(uri.fsPath, filePaths);
                 if (plan.createSubfolder) {
                     mkdirSync(plan.targetDir, { recursive: true });
                 }
-                const filePaths = Object.keys(fileMap);
                 await archive.extractAllTo(plan.targetDir, archivePassword, fileMap);
                 handler.emit('extractToast', { type: 'success', message: i18n('ext.compress.extractSuccess') });
                 await revealExtractResult(plan, filePaths);

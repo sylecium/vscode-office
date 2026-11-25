@@ -56,7 +56,7 @@ export async function exportByType(filePath, data, type, config) {
     let launchOptions = {
         headless: true,
         executablePath: config["executablePath"] || undefined,
-        args: ["--allow-file-access-from-files", ...(config["puppeteerArgs"] || [])]
+        args: config["puppeteerArgs"] || []
     }
 
     const puppeteer = require("puppeteer-core")
@@ -135,7 +135,7 @@ async function replaceDynamicContentWithImages(data, config = {}, exportFilePath
         browser = await puppeteer.launch({
             headless: true,
             executablePath: config["executablePath"] || undefined,
-            args: ["--allow-file-access-from-files", ...(config["puppeteerArgs"] || [])]
+            args: config["puppeteerArgs"] || []
         })
         const page = await browser.newPage()
         await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 })

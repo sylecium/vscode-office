@@ -86,6 +86,8 @@ export default {
     readonlyBanner: 'Schreibgeschützt — durchsuchen und suchen; zum Speichern „Speichern unter“ verwenden',
     formatCannotPreserveTitle: 'Formatierung kann nicht beibehalten werden',
     formatCannotPreserveContent: '{} kann Stile, Zusammenführungen, Formeln usw. nicht beibehalten. Als xlsx speichern?',
+    legacyFormatContent: '{}-Dateien behalten hier nur Zellwerte: Formeln können verloren gehen, Stile, Diagramme und Bilder werden entfernt. Als xlsx speichern?',
+    csvSavedAsUtf8: 'Einige Zeichen fehlen in der ursprünglichen Kodierung: Die Datei wurde als UTF-8 gespeichert.',
     saveAsXlsx: 'Als xlsx speichern',
     saveAsOriginal: 'Im Originalformat speichern',
     chooseExportFormat: 'Exportformat wählen',

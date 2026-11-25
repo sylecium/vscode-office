@@ -144,6 +144,8 @@ export default {
     readonlyBanner: '只读模式 — 可浏览与查找，请使用「另存为」保存更改',
     formatCannotPreserveTitle: '格式将无法保存',
     formatCannotPreserveContent: '{} 格式不支持保存样式、合并单元格、公式等富格式内容。是否另存为 xlsx？',
+    legacyFormatContent: '在此保存 {} 文件只能保留单元格的值：公式可能丢失或过期，样式、图表和图片会被删除。是否另存为 xlsx？',
+    csvSavedAsUtf8: '部分字符无法用原编码表示：文件已保存为 UTF-8。',
     saveAsXlsx: '另存为 xlsx',
     saveAsOriginal: '仍保存原格式',
     chooseExportFormat: '选择导出格式',

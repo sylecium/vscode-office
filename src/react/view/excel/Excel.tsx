@@ -8,7 +8,7 @@ import { loadOfficeBuffer } from "../../util/loadOfficeContent.ts";
 import SponsorBar from '../components/SponsorBar';
 import './Excel.less';
 import { MIN_VIEW_COLS, MIN_VIEW_ROWS } from "./excel_meta.ts";
-import { detectCsvEncoding } from "./csvEncoding.ts";
+import { detectCsvEncoding, type CsvEncoding } from "./csvEncoding.ts";
 import { loadSheets } from "./excel_reader.ts";
 import { export_xlsx, exportSaveAs, buildFormattingSnapshot, hasFormattingChanged } from "./excel_writer.ts";
 import Spreadsheet from './x-spreadsheet/index';
@@ -118,7 +118,8 @@ function ExcelViewer() {
     const documentCacheIdRef = useRef('')
     const readOnlyRef = useRef(false)
     const spreadSheetRef = useRef<Spreadsheet | null>(null)
-    const csvEncodingRef = useRef<'utf8' | 'gbk'>('utf8')
+    const csvEncodingRef = useRef<CsvEncoding>('utf8')
+    const legacyOverwriteAcceptedRef = useRef(false)
     const csvDelimiterRef = useRef(',')
     const initialFormattingRef = useRef('')
 
@@ -191,11 +192,19 @@ function ExcelViewer() {
         const csvEncoding = csvEncodingRef.current;
         const csvDelimiter = csvDelimiterRef.current;
 
-        if (ext !== 'xlsx' && ext !== 'xlsm' && hasFormattingChanged(initialFormattingRef.current, sheets)) {
+        const notifyEncoding = (savedAsUtf8: boolean) => {
+            if (!savedAsUtf8) return;
+            csvEncodingRef.current = 'utf8bom';
+            message.warning({ duration: 6, content: t('viewer.csvSavedAsUtf8') });
+        };
+        // Writing xls or ods keeps cell values only, whatever the user edited.
+        const losesContent = /^(xls|ods)$/.test(ext) && !legacyOverwriteAcceptedRef.current;
+
+        if (losesContent || (ext !== 'xlsx' && ext !== 'xlsm' && hasFormattingChanged(initialFormattingRef.current, sheets))) {
             await new Promise<void>((resolve) => {
                 const dialog = modal.confirm({
                     title: t('viewer.formatCannotPreserveTitle'),
-                    content: t('viewer.formatCannotPreserveContent', ext.toUpperCase()),
+                    content: t(losesContent ? 'viewer.legacyFormatContent' : 'viewer.formatCannotPreserveContent', ext.toUpperCase()),
                     okText: t('viewer.saveAsXlsx'),
                     cancelText: t('button.cancel'),
                     centered: true,
@@ -223,7 +232,8 @@ function ExcelViewer() {
                                     void (async () => {
                                         dialog.destroy();
                                         try {
-                                            await export_xlsx(spreadSheet, extRef.current, csvEncoding, undefined, csvDelimiter);
+                                            legacyOverwriteAcceptedRef.current = true;
+                                            notifyEncoding(await export_xlsx(spreadSheet, extRef.current, csvEncoding, undefined, csvDelimiter));
                                         } catch (error) {
                                             console.error(`Failed to save Excel file: ${(error as Error).message}`);
                                         }
@@ -257,26 +267,28 @@ function ExcelViewer() {
         }
 
         try {
-            await export_xlsx(spreadSheet, extRef.current, csvEncoding, undefined, csvDelimiter);
+            notifyEncoding(await export_xlsx(spreadSheet, extRef.current, csvEncoding, undefined, csvDelimiter));
             spreadSheet.setSaveEnabled(false);
         } catch (error) {
             console.error(`Failed to save Excel file: ${(error as Error).message}`);
         }
-    }, [modal, handleSaveAs]);
+    }, [modal, message, handleSaveAs]);
 
     const confirmSaveAs = useCallback(async (fmt: string) => {
         const spreadSheet = spreadSheetRef.current;
         if (!spreadSheet) return;
         setSaveAsVisible(false);
         try {
-            await exportSaveAs(spreadSheet, fmt, csvEncodingRef.current, csvDelimiterRef.current);
+            if (await exportSaveAs(spreadSheet, fmt, csvEncodingRef.current, csvDelimiterRef.current)) {
+                message.warning({ duration: 6, content: t('viewer.csvSavedAsUtf8') });
+            }
             if (!readOnlyRef.current) {
                 spreadSheet.setSaveEnabled(false);
             }
         } catch (error) {
             console.error(`Failed to save Excel file: ${(error as Error).message}`);
         }
-    }, []);
+    }, [message]);
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
@@ -320,7 +332,8 @@ function ExcelViewer() {
 
         const initSpreadsheet = async (buffer: ArrayBuffer, payload: any) => {
             const fileReadOnly = payload.readOnly === true;
-            if (payload.ext?.match(/csv/i)) {
+            legacyOverwriteAcceptedRef.current = false;
+            if (payload.ext?.match(/csv|tsv/i)) {
                 csvEncodingRef.current = detectCsvEncoding(buffer);
             }
             const { sheets, maxLength, maxCols, csvDelimiter } = await loadSheets(buffer, payload.ext);

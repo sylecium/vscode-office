@@ -80,7 +80,7 @@ export async function handleSevenZip(uri: Uri, handler: Handler) {
                 if (encrypted && !archivePassword) return;
 
                 window.showInformationMessage(i18n('ext.compress.startExtract'));
-                const plan = planExtractTarget(uri.fsPath, files.length);
+                const plan = planExtractTarget(uri.fsPath, filePaths);
                 if (plan.createSubfolder) {
                     mkdirSync(plan.targetDir, { recursive: true });
                 }
@@ -118,6 +118,7 @@ async function listSevenZipEntries(archivePath: string, password?: string, encod
         '-ba',
         ...getSevenZipCharsetArgs(encoding),
         ...(password ? [`-p${password}`] : []),
+        '--',
         basename(archivePath),
     ], encoding);
     // 7z-wasm stdout omits the dash separators between entries, so split on each "Path = " line.
@@ -178,9 +179,12 @@ async function extractSevenZipEntries(
             'x',
             '-y',
             '-aoa',
+            // Names come from the archive: no wildcards, and after "--" no switches or list files.
+            '-spd',
             ...getSevenZipCharsetArgs(encoding),
             ...(password ? [`-p${password}`] : []),
             `-o${toMountedPath(parse(archivePath).root, targetPath)}`,
+            '--',
             basename(archivePath),
             ...(entryNames ?? []),
         ];

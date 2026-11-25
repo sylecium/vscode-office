@@ -1,6 +1,8 @@
 {
 	"ext.common.yes": "YES",
 	"ext.common.no": "NO",
+	"ext.viewer.changedOnDisk": "$1 changed on disk. Reloading discards your unsaved changes.",
+	"ext.viewer.reload": "Reload",
 	"ext.compress.startExtract": "Start extracting...",
 	"ext.compress.extractSuccess": "Extract success!",
 	"ext.compress.wrongPassword": "Wrong password",
