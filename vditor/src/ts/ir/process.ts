@@ -3,7 +3,7 @@ import {fireContentInput} from "../util/saveToolbarState";
 import {removeCurrentToolbar} from "../toolbar/setToolbar";
 import {accessLocalStorage} from "../util/compatibility";
 import {saveCacheFocus} from "../util/cacheFocus";
-import {clearHistoryInputBuffer, setHistoryPending} from "../util/historyInputBufferState";
+import {clearHistoryInputBuffer, getHistoryBurstStart, setHistoryPending} from "../util/historyInputBufferState";
 import {listToggle} from "../util/fixBrowserBehavior";
 import {hasClosestBlock, hasClosestByAttribute, hasClosestByClassName, hasClosestByMatchTag} from "../util/hasClosest";
 import {getEditorRange, setRangeByWbr, setSelectionFocus} from "../util/selection";
@@ -59,7 +59,6 @@ export const recordHistory = (vditor: IVditor, options = {
         scheduleRenderToc(vditor);
     }
 
-    vditor.ir.afterRenderLastAt = Date.now();
     clearHistoryInputBuffer(vditor);
 };
 
@@ -73,13 +72,13 @@ export const processAfterRender = (vditor: IVditor, options = {
     }
 
     clearTimeout(vditor.ir.processTimeoutId);
+    cancelIdleHistory(vditor.ir);
+    setHistoryPending(vditor, options);
     const wait = getHistoryRecordWait(
-        vditor.ir.afterRenderLastAt,
+        getHistoryBurstStart(vditor),
         vditor.options.undoDelay,
         getHistoryMaxWaitFactor(vditor),
     );
-    cancelIdleHistory(vditor.ir);
-    setHistoryPending(vditor, options);
     vditor.ir.processTimeoutId = window.setTimeout(() => {
         scheduleIdleHistory(vditor.ir, () => recordHistory(vditor, options));
     }, wait);

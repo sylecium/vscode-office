@@ -74,7 +74,7 @@ export const getHistoryMaxWaitFactor = (vditor: IVditor): number => {
  * 超大文档（unlimited）始终返回 undoDelay，只靠停笔触发保存。
  */
 export const getHistoryRecordWait = (
-    lastRecordAt: number,
+    burstStartedAt: number,
     undoDelay: number,
     maxWaitFactor: number = DEFAULT_HISTORY_MAX_WAIT_FACTOR,
 ): number => {
@@ -84,11 +84,13 @@ export const getHistoryRecordWait = (
     if (maxWaitFactor <= 0) {
         return 0;
     }
-    if (!lastRecordAt) {
+    if (!burstStartedAt) {
         return undoDelay;
     }
+    // Measured from the first unrecorded edit: measured from the last record, every key typed
+    // after a pause would get no delay and the undo step would split in the middle of a word.
     const maxWait = undoDelay * maxWaitFactor;
-    return Date.now() - lastRecordAt >= maxWait ? 0 : undoDelay;
+    return Date.now() - burstStartedAt >= maxWait ? 0 : undoDelay;
 };
 
 const pendingIdleHistory = new WeakMap<object, number>();

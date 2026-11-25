@@ -2,7 +2,7 @@ import { getMarkdown } from "../markdown/getMarkdown";
 import { saveCacheFocus } from "../util/cacheFocus";
 import { fireContentInput } from "../util/saveToolbarState";
 import { accessLocalStorage } from "../util/compatibility";
-import { clearHistoryInputBuffer, setHistoryPending } from "../util/historyInputBufferState";
+import { clearHistoryInputBuffer, getHistoryBurstStart, setHistoryPending } from "../util/historyInputBufferState";
 import {
     cancelIdleHistory,
     getHistoryMaxWaitFactor,
@@ -32,13 +32,13 @@ export const afterRenderEvent = (vditor: IVditor, options = {
         vditor.hint.render(vditor);
     }
     clearTimeout(vditor.wysiwyg.afterRenderTimeoutId);
+    cancelIdleHistory(vditor.wysiwyg);
+    setHistoryPending(vditor, options);
     const wait = getHistoryRecordWait(
-        vditor.wysiwyg.afterRenderLastAt,
+        getHistoryBurstStart(vditor),
         vditor.options.undoDelay,
         getHistoryMaxWaitFactor(vditor),
     );
-    cancelIdleHistory(vditor.wysiwyg);
-    setHistoryPending(vditor, options);
     vditor.wysiwyg.afterRenderTimeoutId = window.setTimeout(() => {
         scheduleIdleHistory(vditor.wysiwyg, () => recordHistory(vditor, options));
     }, wait);
@@ -94,6 +94,5 @@ export function recordHistory(vditor: IVditor, options = { enableAddUndoStack: t
         totalMs: formatMs(debug ? performance.now() - totalStart : 0),
     });
 
-    vditor.wysiwyg.afterRenderLastAt = Date.now();
     clearHistoryInputBuffer(vditor);
 }

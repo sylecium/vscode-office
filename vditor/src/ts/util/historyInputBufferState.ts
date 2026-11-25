@@ -10,11 +10,21 @@ const pendingHistory = new WeakMap<IVditor, HistoryRecordOptions>();
 /** Options of the record still waiting for a debounce: that edit has not reached the host yet. */
 export const getPendingHistory = (vditor: IVditor) => pendingHistory.get(vditor);
 
+const burstStarts = new WeakMap<IVditor, number>();
+
+/** When the oldest edit still waiting for a record was made. */
+export const getHistoryBurstStart = (vditor: IVditor) => burstStarts.get(vditor) || 0;
+
 export const setHistoryPending = (vditor: IVditor, options?: HistoryRecordOptions) => {
     if (options) {
+        // A record without input (document load) is not an edit: the next edit starts its own burst.
+        if (!pendingHistory.get(vditor)?.enableInput) {
+            burstStarts.set(vditor, Date.now());
+        }
         pendingHistory.set(vditor, options);
     } else {
         pendingHistory.delete(vditor);
+        burstStarts.delete(vditor);
     }
 };
 
