@@ -21,6 +21,8 @@ import {formatMs, logPerf} from "../util/log";
 interface IUndo {
     hasUndo: boolean;
     lastText: string;
+    /** The document no longer matches the first snapshot: recordFirstPosition cannot apply. */
+    firstPositionStale?: boolean;
     redoStack: patch_obj[][];
     undoStack: patch_obj[][];
 }
@@ -106,7 +108,7 @@ class Undo {
             return;
         }
         if (this[vditor.currentMode].undoStack.length !== 1 || this[vditor.currentMode].undoStack[0].length === 0 ||
-            this[vditor.currentMode].redoStack.length > 0) {
+            this[vditor.currentMode].redoStack.length > 0 || this[vditor.currentMode].firstPositionStale) {
             return;
         }
         if (isFirefox() && event.key === "Backspace") {
@@ -121,6 +123,7 @@ class Undo {
         if (text.replace("<wbr>", "").replace(" vditor-ir__node--expand", "")
             !== this[vditor.currentMode].undoStack[0][0].diffs[0][1].replace("<wbr>", "")) {
             // 当还不没有存入 undo 栈时，按下 ctrl 后会覆盖 lastText
+            this[vditor.currentMode].firstPositionStale = true;
             return;
         }
         this[vditor.currentMode].undoStack[0][0].diffs[0][1] = text;

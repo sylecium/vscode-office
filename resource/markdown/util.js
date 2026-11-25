@@ -7,7 +7,7 @@ function loadRes(url) {
 const isMac = navigator.userAgent.includes('Mac OS');
 const shortcutTip = isMac ? '⌘ ^ E' : 'Ctrl Alt E';
 
-export async function getToolbar(resPath, onSave = null) {
+export async function getToolbar(resPath, onSave = null, onLeave = null) {
     const codicon = (name) => `<span class="codicon codicon-${name}" aria-hidden="true"></span>`;
     return [
         'outline',
@@ -24,6 +24,7 @@ export async function getToolbar(resPath, onSave = null) {
             className: 'right',
             icon: codicon('vscode'),
             click() {
+                onLeave?.()
                 handler.emit("editInVSCode", true)
             }
         },
@@ -189,6 +190,7 @@ export const createContextMenu = (editor) => {
         if (!item || (item.classList.contains('vditor-context-menu__item--desktop-only') && document.body.classList.contains('is-web'))) return
         closeMenu()
         const action = item.dataset.action
+        if (action.startsWith('export')) editor.flushPendingInput()
         switch (action) {
             case 'copy':
                 document.execCommand('copy')
@@ -263,6 +265,7 @@ export const bindShortcut = (handler, editor, workspaceBaseUrl = '') => {
         if (matchShortcut('^⌘e', e) || matchShortcut('^!e', e)) {
             e.stopPropagation();
             e.preventDefault();
+            editor.flushPendingInput();
             return handler.emit("editInVSCode", true);
         }
 

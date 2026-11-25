@@ -293,9 +293,13 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             if (imageMarkdown) {
                 handler.emit('insertImageMarkdown', imageMarkdown);
             }
-        }).on("editInVSCode", (full: boolean) => {
-            const side = full ? vscode.ViewColumn.Active : vscode.ViewColumn.Beside;
-            vscode.commands.executeCommand('vscode.openWith', uri, "default", side);
+        }).on("editInVSCode", async (full: boolean) => {
+            await flushDocumentSync();
+            if (full) {
+                await new MarkdownService(this.context).reopenInPlace(uri, "default");
+            } else {
+                vscode.commands.executeCommand('vscode.openWith', uri, "default", vscode.ViewColumn.Beside);
+            }
         }).on("showInFolder", () => {
             if (vscode.env.uiKind !== vscode.UIKind.Web) {
                 vscode.commands.executeCommand('revealFileInOS', uri);
@@ -308,9 +312,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             await flushDocumentSync();
             this.updateCount(content);
             vscode.commands.executeCommand('workbench.action.files.save');
-        }).on("export", (option) => {
-            vscode.commands.executeCommand('workbench.action.files.save');
-            new MarkdownService(this.context).exportMarkdown(uri, option)
+        }).on("export", async (option) => {
+            // The export reads the file on disk: write it completely first.
+            await flushDocumentSync();
+            if (document.isDirty && !await document.save()) return;
+            await new MarkdownService(this.context).exportMarkdown(uri, option)
         }).on('developerTool', () => {
             vscode.commands.executeCommand('workbench.action.toggleDevTools')
         }).on('openAbout', () => {

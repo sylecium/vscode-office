@@ -72,7 +72,7 @@ const canMoveBlockAmongSiblings = (element: HTMLElement, editorElement: HTMLElem
     if (element.tagName === "LI") {
         return true;
     }
-    return element.parentElement.isEqualNode(editorElement);
+    return element.parentElement === editorElement;
 };
 
 const afterBlockChange = (vditor: IVditor) => {

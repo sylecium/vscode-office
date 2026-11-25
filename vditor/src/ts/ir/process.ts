@@ -3,7 +3,7 @@ import {fireContentInput} from "../util/saveToolbarState";
 import {removeCurrentToolbar} from "../toolbar/setToolbar";
 import {accessLocalStorage} from "../util/compatibility";
 import {saveCacheFocus} from "../util/cacheFocus";
-import {clearHistoryInputBuffer} from "../util/historyInputBufferState";
+import {clearHistoryInputBuffer, setHistoryPending} from "../util/historyInputBufferState";
 import {listToggle} from "../util/fixBrowserBehavior";
 import {hasClosestBlock, hasClosestByAttribute, hasClosestByClassName, hasClosestByMatchTag} from "../util/hasClosest";
 import {getEditorRange, setRangeByWbr, setSelectionFocus} from "../util/selection";
@@ -31,6 +31,7 @@ export const recordHistory = (vditor: IVditor, options = {
         return;
     }
     cancelIdleHistory(vditor.ir);
+    setHistoryPending(vditor);
     const text = getMarkdown(vditor);
     if (options.enableInput) {
         fireContentInput(vditor, text);
@@ -76,6 +77,7 @@ export const processAfterRender = (vditor: IVditor, options = {
         getHistoryMaxWaitFactor(vditor),
     );
     cancelIdleHistory(vditor.ir);
+    setHistoryPending(vditor, options);
     vditor.ir.processTimeoutId = window.setTimeout(() => {
         scheduleIdleHistory(vditor.ir, () => recordHistory(vditor, options));
     }, wait);

@@ -1,4 +1,22 @@
 const bufferMap = new WeakMap<IVditor, string>();
+export interface HistoryRecordOptions {
+    enableAddUndoStack: boolean;
+    enableHint?: boolean;
+    enableInput: boolean;
+}
+
+const pendingHistory = new WeakMap<IVditor, HistoryRecordOptions>();
+
+/** Options of the record still waiting for a debounce: that edit has not reached the host yet. */
+export const getPendingHistory = (vditor: IVditor) => pendingHistory.get(vditor);
+
+export const setHistoryPending = (vditor: IVditor, options?: HistoryRecordOptions) => {
+    if (options) {
+        pendingHistory.set(vditor, options);
+    } else {
+        pendingHistory.delete(vditor);
+    }
+};
 
 export const getHistoryInputBuffer = (vditor: IVditor) => bufferMap.get(vditor) || "";
 
