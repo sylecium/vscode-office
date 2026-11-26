@@ -90,6 +90,7 @@ export class Options {
         value: "",
         width: "auto",
         preventMacOptionKey: true,
+        mouseWheelZoom: true,
         editorTheme: "Auto",
         lastNonAutoEditorTheme: "Light",
         lastLightEditorTheme: "Light",

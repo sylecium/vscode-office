@@ -38,6 +38,7 @@ export interface MarkdownEditorProviderOptions {
 
 const MARKDOWN_SYNC_CONFIG_KEYS = [
     'preventMacOptionKey',
+    'markdownMouseWheelZoom',
     'editMode',
     'editorTheme',
     'codeMirrorTheme',
@@ -478,6 +479,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             codeMirrorTheme: configuration.get<string>("codeMirrorTheme", "Auto"),
             mermaidTheme: configuration.get<string>("mermaidTheme", "Auto"),
             preventMacOptionKey: configuration.get<boolean>("preventMacOptionKey", true),
+            markdownMouseWheelZoom: configuration.get<boolean>("markdownMouseWheelZoom", true),
             markdownShortcuts: configuration.get<Record<string, string>>("markdownShortcuts", {}),
             markdown: {
                 math: {

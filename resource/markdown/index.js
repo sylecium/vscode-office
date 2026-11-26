@@ -20,6 +20,7 @@ handler.on("open", async (md) => {
     value: content,
     cdn: rootPath,
     preventMacOptionKey: config.preventMacOptionKey !== false,
+    mouseWheelZoom: config.markdownMouseWheelZoom !== false,
     shortcuts: config.markdownShortcuts || {},
     height: '100%',
     outline: {
@@ -144,6 +145,9 @@ handler.on("open", async (md) => {
       handler.on('markdownConfig', (update) => {
         if (Object.prototype.hasOwnProperty.call(update, 'preventMacOptionKey')) {
           editor.vditor.options.preventMacOptionKey = update.preventMacOptionKey !== false;
+        }
+        if (Object.prototype.hasOwnProperty.call(update, 'markdownMouseWheelZoom')) {
+          editor.vditor.options.mouseWheelZoom = update.markdownMouseWheelZoom !== false;
         }
         if (update.markdownShortcuts !== undefined) {
           editor.setShortcuts(update.markdownShortcuts || {});
