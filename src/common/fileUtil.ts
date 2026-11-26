@@ -14,14 +14,18 @@ export function adjustImgPath(uri: vscode.Uri, ext: string = 'png') {
     const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
     const uuid = crypto.randomUUID().replace(/-/g, '');
     const workspacePath = getWorkspacePath(uri);
+    const imgVars: Record<string, string> = {
+        fileName: parse(uri.fsPath).name.replace(/\s/g, ''),
+        now: now.getTime() + "",
+        date,
+        uuid,
+        ext,
+    };
+    // A replacer function keeps `$` in a value literal.
     const imgPath = Global.getConfig<string>("pasterImgPath")
-        .replace("${fileName}", parse(uri.fsPath).name.replace(/\s/g, ''))
-        .replace("${now}", now.getTime() + "")
-        .replace("${date}", date)
-        .replace("${uuid}", uuid)
-        .replace("${ext}", ext);
-    const fullPath = imgPath.replace("${workspaceDir}", workspacePath);
-    let relPath = imgPath.replace(/\$\{workspaceDir\}\/?/, '');
+        .replace(/\$\{(fileName|now|date|uuid|ext)\}/g, (_, key: string) => imgVars[key]);
+    const fullPath = imgPath.replace(/\$\{workspaceDir\}/g, () => workspacePath);
+    let relPath = imgPath.replace(/\$\{workspaceDir\}\/?/g, '');
     if (
         Global.getConfig<boolean>("pasteImageToWorkspacePath", false)
         && workspacePath

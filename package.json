@@ -609,6 +609,11 @@
 						"default": true,
 						"description": "Prevent MacOS option key in the markdown editor."
 					},
+					"vscode-office.markdownMouseWheelZoom": {
+						"type": "boolean",
+						"default": true,
+						"description": "Zoom the markdown editor font size with Ctrl/Cmd + mouse wheel."
+					},
 					"vscode-office.editorTheme": {
 						"type": "string",
 						"enum": [

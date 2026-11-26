@@ -70,3 +70,7 @@ export function matchHotkeyNew(hotkey: string, event: KeyboardEvent) {
 
 }
 
+// Tab or Shift+Tab only: Ctrl+Tab is left to VS Code to switch editors.
+export const isPlainTab = (event: KeyboardEvent) => {
+    return event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey;
+};

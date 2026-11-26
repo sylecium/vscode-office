@@ -77,6 +77,9 @@ export const wheelZoomFontSizeEvent = (vditor: IVditor, editorElement: HTMLEleme
         }
 
         event.preventDefault();
+        if (vditor.options.mouseWheelZoom === false) {
+            return;
+        }
 
         const now = Date.now();
         if (now - lastAppliedAt < WHEEL_FONT_SIZE_THROTTLE_MS) {

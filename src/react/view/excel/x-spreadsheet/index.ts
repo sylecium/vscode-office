@@ -98,6 +98,8 @@ export interface CellData {
     merge?: CellMerge;
     /** false 表示不可编辑（对应 Excel 锁定单元格） */
     editable?: boolean;
+    /** Cell note as ExcelJS reads it: plain text, or rich text runs. JSON safe, like `source`. */
+    note?: string | { texts?: { text: string; font?: object }[] };
 }
 
 export interface RowData {

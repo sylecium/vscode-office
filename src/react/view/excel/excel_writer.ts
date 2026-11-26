@@ -108,8 +108,9 @@ async function writeSheetToExcelJs(worksheet: ExcelJS.Worksheet, workbook: Excel
         }
     }
 
+    // Without this, merged cells share one style object, so styling a covered cell restyles the master.
     for (let i = 0; i < merges.length; i += 1) {
-        worksheet.mergeCells(merges[i]);
+        worksheet.mergeCellsWithoutStyle(merges[i]);
     }
 
     applySheetMeta(worksheet, sheetData);
@@ -128,9 +129,11 @@ async function writeSheetToExcelJs(worksheet: ExcelJS.Worksheet, workbook: Excel
             const cellData = row.cells[ci];
             const excelCell = worksheet.getCell(ri + 1, ci + 1);
             const hl = hyperlinks[hyperlinkKey(ri, ci)] as SpreadsheetHyperlink | undefined;
-            if (hl?.link) {
+            // ExcelJS forwards a value written to a covered cell to the master, which would erase its text.
+            const isCoveredCell = excelCell.isMerged && excelCell.master.address !== excelCell.address;
+            if (!isCoveredCell && hl?.link) {
                 writeCellHyperlink(excelCell, cellData.text ?? '', hl);
-            } else {
+            } else if (!isCoveredCell) {
                 setCellValue(excelCell, cellData);
             }
             const style = cellData.style != null ? styles[cellData.style] : undefined;
@@ -140,6 +143,11 @@ async function writeSheetToExcelJs(worksheet: ExcelJS.Worksheet, workbook: Excel
             // Unless the user picked another format, keep the exact one of the file.
             if (cellData.numFmt && cellData.numFmtFormat === style?.format) {
                 excelCell.numFmt = cellData.numFmt;
+            }
+            if (cellData.note) {
+                excelCell.note = cellData.note;
+                // ExcelJS skips a cell with no value and no style, so a note-only cell needs a style.
+                excelCell.alignment ??= {};
             }
         }
     }

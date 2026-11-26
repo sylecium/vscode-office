@@ -219,14 +219,20 @@ const convertExcelJsWorksheet = (worksheet: ExcelJS.Worksheet, workbook: ExcelJS
         const ri = rowNumber - 1;
         const cells: Record<number, CellData> = {};
         row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-            if (cell.isMerged && cell.address !== cell.master.address) return;
+            if (cell.isMerged && cell.address !== cell.master.address) {
+                // A covered cell has no value of its own, but keeps its style, such as a border.
+                const coveredStyle = styleRegistry.add(excelJsCellToStyle(cell));
+                if (coveredStyle != null) cells[colNumber - 1] = { text: '', style: coveredStyle };
+                return;
+            }
 
             const ci = colNumber - 1;
             const text = formatCellText(cell);
             const cellStyle = excelJsCellToStyle(cell);
             const editable = readCellEditableFromExcel(cell, sheetProtected);
             const hl = readCellHyperlink(cell, ri, ci);
-            if (!text && !cellStyle && editable === undefined && !Object.keys(hl).length) return;
+            const note = cell.note;
+            if (!text && !cellStyle && editable === undefined && !Object.keys(hl).length && !note) return;
 
             const styleIndex = styleRegistry.add(cellStyle);
             const cellData: CellData = { text };
@@ -238,6 +244,7 @@ const convertExcelJsWorksheet = (worksheet: ExcelJS.Worksheet, workbook: ExcelJS
             }
             if (styleIndex != null) cellData.style = styleIndex;
             if (editable !== undefined) cellData.editable = editable;
+            if (note) cellData.note = note;
             cells[ci] = cellData;
             if (ci + 1 > maxCols) maxCols = ci + 1;
             if (ri + 1 > maxRow) maxRow = ri + 1;
@@ -326,9 +333,120 @@ const convertExcelJsWorkbook = (
     return { sheets, maxLength, maxCols };
 };
 
+const EXCELJS_COMMENTS_TARGET = /^\.\.\/comments\d+\.xml$/;
+const EXCELJS_VML_TARGET = /^\.\.\/drawings\/vmlDrawing\d+\.vml$/;
+const PLAIN_NOTE_TEXT = /<text>(\s*<t[\s>][\s\S]*?<\/t>\s*)<\/text>/g;
+
+const resolveSheetRelTarget = (target: string) => {
+    if (target.startsWith('/')) return target.slice(1);
+    const parts: string[] = [];
+    for (const part of `xl/worksheets/${target}`.split('/')) {
+        if (part === '..') parts.pop();
+        else if (part !== '.') parts.push(part);
+    }
+    return parts.join('/');
+};
+
+/** Appends a cell format that changes nothing (default font, fill, border and number format) and returns its index. */
+const addNoteStyle = async (zip: JSZip): Promise<number | undefined> => {
+    const xml = await zip.file('xl/styles.xml')?.async('string');
+    const count = xml ? /<cellXfs count="(\d+)"/.exec(xml) : null;
+    if (!xml || !count || !xml.includes('</cellXfs>')) return undefined;
+    const index = Number(count[1]);
+    zip.file('xl/styles.xml', xml
+        .replace(count[0], `<cellXfs count="${index + 1}"`)
+        .replace('</cellXfs>', '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>'));
+    return index;
+};
+
+/**
+ * ExcelJS reads notes only from `xl/commentsN.xml` and `xl/drawings/vmlDrawingN.vml`, referenced as
+ * `../commentsN.xml`. openpyxl writes other names with absolute targets, so those parts are renamed.
+ * Files that already match are returned as they are.
+ */
+const normalizeNoteParts = async (buffer: ArrayBuffer): Promise<ArrayBuffer> => {
+    const zip = await JSZip.loadAsync(buffer);
+    const used = new Set(Object.keys(zip.files));
+    const claim = (part: (n: number) => string) => {
+        let n = 1;
+        while (used.has(part(n))) n += 1;
+        used.add(part(n));
+        return part(n);
+    };
+    const moved = new Map<string, string>();
+    const renames: [string, string][] = [];
+    const relsFiles = zip.file(/^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/);
+
+    for (const relsFile of relsFiles) {
+        const xml = await relsFile.async('string');
+        const newXml = xml.replace(/<Relationship\b[^>]*\/>/g, (rel) => {
+            const type = /\bType="([^"]*)"/.exec(rel)?.[1] ?? '';
+            const isComments = /\/comments$/.test(type);
+            const isVml = /\/vmlDrawing$/.test(type);
+            const target = /\bTarget=(["'])([^"']*)\1/.exec(rel)?.[2];
+            if (!target || !(isComments || isVml)) return rel;
+            if (isComments ? EXCELJS_COMMENTS_TARGET.test(target) : EXCELJS_VML_TARGET.test(target)) return rel;
+
+            const oldPath = resolveSheetRelTarget(target);
+            if (!zip.file(oldPath)) return rel;
+            let newPath = moved.get(oldPath);
+            if (!newPath) {
+                newPath = claim(isComments
+                    ? (n) => `xl/comments${n}.xml`
+                    : (n) => `xl/drawings/vmlDrawing${n}.vml`);
+                moved.set(oldPath, newPath);
+                renames.push([oldPath, newPath]);
+            }
+            return rel.replace(/\bTarget=(["'])[^"']*\1/, `Target="../${newPath.slice('xl/'.length)}"`);
+        });
+        if (newXml !== xml) zip.file(relsFile.name, newXml);
+    }
+
+    for (const [oldPath, newPath] of renames) {
+        const content = await zip.file(oldPath)?.async('uint8array');
+        if (content) zip.file(newPath, content);
+        zip.remove(oldPath);
+    }
+
+    // ExcelJS reads only runs (<r>) in a note, while openpyxl writes its text directly under <text>.
+    let changed = renames.length > 0;
+    for (const file of zip.file(/^xl\/comments\d+\.xml$/)) {
+        const xml = await file.async('string');
+        const fixed = xml.replace(PLAIN_NOTE_TEXT, '<text><r>$1</r></text>');
+        if (fixed === xml) continue;
+        zip.file(file.name, fixed);
+        changed = true;
+    }
+
+    // ExcelJS reads a note only on a cell that has a value or a style, so an empty note cell gets one.
+    let noteStyle: number | undefined;
+    for (const relsFile of zip.file(/^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/)) {
+        const commentsTarget = /Target="\.\.\/(comments\d+\.xml)"/.exec(await relsFile.async('string'));
+        const sheetPath = relsFile.name.replace('_rels/', '').replace(/\.rels$/, '');
+        const commentsXml = commentsTarget && await zip.file(`xl/${commentsTarget[1]}`)?.async('string');
+        const sheet = zip.file(sheetPath);
+        if (!commentsXml || !sheet) continue;
+        let sheetXml = await sheet.async('string');
+        let patched = false;
+        for (const [, ref] of commentsXml.matchAll(/<comment\b[^>]*?\bref="([A-Z]+\d+)"/g)) {
+            const cell = new RegExp(`<c r="${ref}"([^>]*?)(?:/>|></c>)`).exec(sheetXml);
+            if (!cell || / s=/.test(cell[1])) continue;
+            noteStyle ??= await addNoteStyle(zip);
+            if (noteStyle === undefined) break;
+            sheetXml = sheetXml.replace(cell[0], `<c r="${ref}" s="${noteStyle}"/>`);
+            patched = true;
+        }
+        if (patched) {
+            zip.file(sheetPath, sheetXml);
+            changed = true;
+        }
+    }
+    return changed ? zip.generateAsync({ type: 'arraybuffer' }) : buffer;
+};
+
 const loadWithExcelJs = async (buffer: ArrayBuffer): Promise<ExcelData> => {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(await normalizeNoteParts(buffer));
     const sortStateXmlMap = await readWorkbookSortStateXml(buffer);
     return convertExcelJsWorkbook(workbook, sortStateXmlMap);
 };

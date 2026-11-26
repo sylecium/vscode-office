@@ -564,6 +564,8 @@ interface IOptions {
     mermaidTheme?: IMermaidTheme | string;
     /** 阻止 macOS Option 键输入特殊符号。默认值: true */
     preventMacOptionKey?: boolean;
+    /** Ctrl/Cmd + mouse wheel changes the font size; browser zoom stays blocked when false. Default: true */
+    mouseWheelZoom?: boolean;
     /** Custom keyboard shortcuts: command name -> combo (e.g. "ctrl+shift+b"); "" disables. */
     shortcuts?: Record<string, string>;
     /** 图标。默认值: 'ant' */
