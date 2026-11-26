@@ -24,6 +24,7 @@ import { MarkdownDocumentSync } from '@/service/markdown/documentSync';
 import { openLinkedFile } from '@/service/markdown/linkedFile';
 import { escapePreviewAttribute, renderInstantPreview } from '@/service/markdown/instantPreview';
 import { openWebLink } from '@/common/openWebLink';
+import { registerGitDiff } from '@/service/markdown/gitDiff';
 
 function getRuntimePlatform(): string {
     if (typeof process !== 'undefined' && process.platform) {
@@ -140,6 +141,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             ],
         }
         const handler = Handler.bind(webviewPanel, uri);
+        registerGitDiff(document, handler);
         void this.handleMarkdown(document, handler, folderPath);
         handler.on('developerTool', () => vscode.commands.executeCommand('workbench.action.toggleDevTools'))
     }
