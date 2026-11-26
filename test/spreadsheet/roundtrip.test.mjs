@@ -1,6 +1,7 @@
 // Opening then saving a spreadsheet must not change the type or value of untouched cells.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import JSZip from 'jszip';
 import { loadModules } from './load.mjs';
 
 const { ExcelJS, XLSX, loadSheets, export_xlsx, detectCsvEncoding, saved } = await loadModules();
@@ -129,4 +130,166 @@ test('GBK is only assumed for Chinese users', () => {
     const gbk = toArrayBuffer([0xd6, 0xd0, 0xce, 0xc4]);
     assert.equal(detectCsvEncoding(gbk, 'zh-CN'), 'gbk');
     assert.equal(detectCsvEncoding(gbk, 'fr'), 'windows-1252');
+});
+
+test('styling a covered cell of a merged range keeps the text and the master style', async () => {
+    const sheets = [{
+        name: 'S',
+        merges: ['A1:B2'],
+        styles: [{ bgcolor: '#ff0000' }, { bgcolor: '#0000ff' }],
+        rows: {
+            len: 2,
+            0: { cells: { 0: { text: 'Titre', style: 0 }, 1: { style: 1 } } },
+            1: { cells: { 0: { style: 1 }, 1: { style: 1 } } },
+        },
+    }];
+    await export_xlsx({ getData: () => sheets }, 'xlsx');
+    const sheet = await openXlsx(saved());
+    assert.equal(sheet.getCell('A1').value, 'Titre');
+    assert.equal(sheet.getCell('A1').fill.fgColor.argb, 'FFFF0000');
+});
+
+test('cell notes survive a save, rich notes included', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('S');
+    sheet.getCell('A1').value = 'x';
+    sheet.getCell('A1').note = 'Remarque';
+    sheet.getCell('C1').value = 'riche';
+    sheet.getCell('C1').note = { texts: [{ text: 'Gras', font: { bold: true } }, { text: ' fin' }] };
+    const { data } = await resave('xlsx', await workbook.xlsx.writeBuffer());
+    assert.equal(data.sheets[0].rows[0].cells[0].note, 'Remarque');
+    const reopened = await openXlsx(new Uint8Array(saved()));
+    assert.equal(reopened.getCell('A1').note, 'Remarque');
+    assert.equal(reopened.getCell('C1').note.texts[0].text, 'Gras');
+    assert.equal(reopened.getCell('C1').note.texts[0].font.bold, true);
+});
+
+test('a cell that holds only a note is written and read back', async () => {
+    const sheets = [{ name: 'S', rows: { len: 1, 0: { cells: { 1: { text: '', note: 'Seule' } } } } }];
+    await export_xlsx({ getData: () => sheets }, 'xlsx');
+    const sheet = await openXlsx(saved());
+    assert.equal(sheet.getCell('B1').note, 'Seule');
+    const data = await loadSheets(toArrayBuffer(saved()), '.xlsx');
+    assert.equal(data.sheets[0].rows[0].cells[1].note, 'Seule');
+});
+
+// Moves the notes of an ExcelJS file to the names and targets openpyxl uses, with its plain note text.
+async function withOpenpyxlNotes(bytes) {
+    const zip = await JSZip.loadAsync(bytes);
+    for (const rels of zip.file(/^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/)) {
+        let xml = await rels.async('string');
+        for (const rel of xml.match(/<Relationship\b[^>]*\/>/g) ?? []) {
+            const comments = /Target="\.\.\/comments(\d+)\.xml"/.exec(rel);
+            const vml = /Target="\.\.\/drawings\/vmlDrawing(\d+)\.vml"/.exec(rel);
+            if (!comments && !vml) continue;
+            const from = comments ? `xl/comments${comments[1]}.xml` : `xl/drawings/vmlDrawing${vml[1]}.vml`;
+            const to = comments ? `xl/comments/comment${comments[1]}.xml` : `xl/drawings/commentsDrawing${vml[1]}.vml`;
+            if (comments) {
+                const text = (await zip.file(from).async('string')).replace(/<r>(<t[^>]*>[\s\S]*?<\/t>)<\/r>/g, '$1');
+                zip.file(to, text);
+            } else {
+                zip.file(to, await zip.file(from).async('uint8array'));
+            }
+            zip.remove(from);
+            xml = xml.replace(rel, rel.replace(/Target="[^"]*"/, `Target="/${to}"`));
+        }
+        zip.file(rels.name, xml);
+    }
+    return zip.generateAsync({ type: 'uint8array' });
+}
+
+test('a file with openpyxl notes opens and keeps the note text', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('S');
+    sheet.getCell('A1').value = 'x';
+    sheet.getCell('A1').note = 'solo';
+    const bytes = await withOpenpyxlNotes(await workbook.xlsx.writeBuffer());
+    const data = await loadSheets(toArrayBuffer(bytes), '.xlsx');
+    assert.equal(data.sheets[0].rows[0].cells[0].note, 'solo');
+});
+
+test('openpyxl notes on the second sheet only stay on their cell', async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('A').getCell('A1').value = 'a';
+    const second = workbook.addWorksheet('B');
+    second.getCell('B2').value = 'b';
+    second.getCell('B2').note = 'note 2';
+    const bytes = await withOpenpyxlNotes(await workbook.xlsx.writeBuffer());
+    const data = await loadSheets(toArrayBuffer(bytes), '.xlsx');
+    assert.equal(data.sheets[0].rows[0].cells[0].note, undefined);
+    assert.equal(data.sheets[1].rows[1].cells[1].note, 'note 2');
+});
+
+// Adds notes on B1 (inside the used range) and on D6 (beyond it) on cells with no value and no style,
+// as openpyxl writes them. The sheet is the ExcelJS one, so run text is kept when `run` is set.
+async function withEmptyNoteCells(bytes, run) {
+    const zip = await JSZip.loadAsync(bytes);
+    const sheet = await zip.file('xl/worksheets/sheet1.xml').async('string');
+    zip.file('xl/worksheets/sheet1.xml', sheet
+        .replace('</row>', '<c r="B1" t="n"></c></row>')
+        .replace('</sheetData>', '<row r="6"><c r="D6" t="n"></c></row></sheetData>'));
+    const note = (ref, text) => `<comment ref="${ref}" authorId="0"><text>${run ? `<r>${text}</r>` : text}</text></comment>`;
+    const comments = await zip.file('xl/comments1.xml').async('string');
+    zip.file('xl/comments1.xml', comments.replace('</commentList>',
+        `${note('B1', '<t>vide B1</t>')}${note('D6', '<t>vide D6</t>')}</commentList>`));
+    return zip.generateAsync({ type: 'uint8array' });
+}
+
+async function singleNoteBook() {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('S');
+    sheet.getCell('A1').value = 'x';
+    sheet.getCell('A1').note = 'solo';
+    return workbook.xlsx.writeBuffer();
+}
+
+function assertEmptyNotes(data) {
+    assert.equal(data.sheets[0].rows[0].cells[0].note, 'solo');
+    assert.equal(data.sheets[0].rows[0].cells[1].note, 'vide B1');
+    assert.equal(data.sheets[0].rows[0].cells[1].text, '');
+    assert.equal(data.sheets[0].rows[5].cells[3].note, 'vide D6');
+    assert.equal(data.sheets[0].rows[5].cells[3].text, '');
+}
+
+test('openpyxl notes on empty cells, inside and beyond the used range, are kept', async () => {
+    const bytes = await withOpenpyxlNotes(await withEmptyNoteCells(await singleNoteBook(), false));
+    assertEmptyNotes(await loadSheets(toArrayBuffer(bytes), '.xlsx'));
+});
+
+test('notes on empty cells are kept when the parts already have the ExcelJS names', async () => {
+    const bytes = await withEmptyNoteCells(await singleNoteBook(), true);
+    assertEmptyNotes(await loadSheets(toArrayBuffer(bytes), '.xlsx'));
+});
+
+test('covered cells of a merged range keep their own borders', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('S');
+    sheet.mergeCellsWithoutStyle('B3:D4');
+    const red = { style: 'thin', color: { argb: 'FFFF0000' } };
+    sheet.getCell('B3').border = { top: red, left: red, bottom: red, right: red };
+    sheet.getCell('C3').border = { top: { style: 'thin', color: { argb: 'FF0000FF' } } };
+    await resave('xlsx', await workbook.xlsx.writeBuffer());
+    const reopened = await openXlsx(new Uint8Array(saved()));
+    assert.equal(reopened.getCell('B3').border.top.color.argb, 'FFFF0000');
+    assert.equal(reopened.getCell('C3').border.top.color.argb, 'FF0000FF');
+});
+
+test('a fill on a whole merged range survives two saves', async () => {
+    const sheets = [{
+        name: 'S',
+        merges: ['A1:B2'],
+        styles: [{ bgcolor: '#00ff00' }],
+        rows: {
+            len: 2,
+            0: { cells: { 0: { text: 'Titre', style: 0 }, 1: { style: 0 } } },
+            1: { cells: { 0: { style: 0 }, 1: { style: 0 } } },
+        },
+    }];
+    await export_xlsx({ getData: () => sheets }, 'xlsx');
+    const first = await loadSheets(toArrayBuffer(saved()), '.xlsx');
+    await export_xlsx({ getData: () => first.sheets }, 'xlsx');
+    const sheet = await openXlsx(new Uint8Array(saved()));
+    assert.equal(sheet.getCell('A1').value, 'Titre');
+    assert.equal(sheet.getCell('A1').fill.fgColor.argb, 'FF00FF00');
+    assert.equal(sheet.getCell('B2').fill.fgColor.argb, 'FF00FF00');
 });
