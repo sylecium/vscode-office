@@ -1,5 +1,19 @@
 # Change log
 
+# 4.3.4 2026-11-26
+
+Markdown Editor:
+
+- Highlight the changes when a document is viewed in a Git diff: red on the old side and green on the new one, per paragraph, list item, table row or code block. Both sides are blue when Git cannot tell which version comes first. In VS Code versions that open Markdown diffs as text, add `"workbench.diffEditorAssociations": { "*.md": "cweijan.markdownViewer" }`.
+- Let table columns use the available width instead of wrapping at 300px.
+- Add the `vscode-office.markdownMouseWheelZoom` setting to disable Ctrl/Cmd + wheel zoom.
+- Leave Ctrl+Tab to VS Code: switching editors no longer inserts a tab in the document.
+- Fix the pasted image path when a variable is used twice, or when a file or folder name contains `$`.
+
+Excel viewer:
+
+- Saving no longer erases the text of merged cells or drops cell notes, and files with notes written by openpyxl open again.
+
 # 4.3.3 2026-11-25
 
 Security fixes for the Markdown Editor. All users of 4.3.2 and earlier should update.

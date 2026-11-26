@@ -3,6 +3,7 @@ import { observeWorkspaceAbsoluteImages, createMarkdownValueReader, restoreWorks
 import { mapVscodeLanguageToVditorLang } from "./lang.js";
 import { bindLinkErrors } from "./linkError.js";
 import { dismissInstantPreview, savePreviewShell } from "./instantPreview.js";
+import { bindGitDiff } from "./gitDiff.js";
 
 handler.on("open", async (md) => {
   const { content, rootPath, workspaceBaseUrl, documentCacheId, pendingFragment, shouldRestoreFocus, config, fileName } = md;
@@ -203,6 +204,7 @@ handler.on("open", async (md) => {
       if (pendingFragment) {
         editor.scrollToBlock(pendingFragment);
       }
+      bindGitDiff(handler, editor);
     }
   })
   bindShortcut(handler, editor, workspaceBaseUrl);
